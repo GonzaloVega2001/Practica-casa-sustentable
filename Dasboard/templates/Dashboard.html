@@ -1,0 +1,272 @@
+{% load static %}
+<!doctype html>
+<html lang="es">
+    <head>
+        <meta charset="utf-8" />
+        <meta name="viewport" content="width=device-width,initial-scale=1" />
+        <title>Dashboard</title>
+        <link href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.2/dist/css/bootstrap.min.css" rel="stylesheet">
+        <link href="https://cdn.jsdelivr.net/npm/bootstrap-icons@1.10.5/font/bootstrap-icons.css" rel="stylesheet">
+        <script src="https://cdn.jsdelivr.net/npm/chart.js@4.4.0/dist/chart.umd.min.js"></script>
+
+        <style>
+            body {
+                background: linear-gradient(180deg, #f8fafc 0%, #eef2ff 100%);
+                min-height: 100vh;
+            }
+            .dashboard-header {
+                display: flex;
+                align-items: center;
+                gap: 12px;
+                margin-bottom: 1.5rem;
+            }
+            .card.sensor-card {
+                border: 0;
+                border-radius: .9rem;
+                box-shadow: 0 8px 20px rgba(20, 24, 40, 0.06);
+                transition: transform .18s ease, box-shadow .18s ease;
+            }
+            .card.sensor-card:hover {
+                transform: translateY(-6px);
+                box-shadow: 0 18px 40px rgba(20, 24, 40, 0.12);
+            }
+            .card-header.custom {
+                background: linear-gradient(90deg, rgba(13,110,253,0.12), rgba(13,110,253,0.04));
+                border-bottom: 1px solid rgba(13,110,253,0.06);
+                display:flex;
+                align-items:center;
+                justify-content:space-between;
+                gap:8px;
+            }
+            .chart-container {
+                height: 260px;
+                position: relative;
+            }
+            .small-muted {
+                font-size: .86rem;
+                color: #6c757d;
+            }
+            .badge-round {
+                border-radius: 999px;
+                font-weight: 600;
+            }
+            .footer-note {
+                font-size: .85rem;
+                color: #6b7280;
+            }
+        </style>
+    </head>
+    <body class="p-4">
+        <div class="container py-4">
+            <div class="dashboard-header">
+                <h1 class="h3 mb-0"><i class="bi bi-speedometer2"></i> Dashboard de Sensores</h1>
+                <small class="text-muted ms-2">Visualización de temperaturas</small>
+                <div class="ms-auto">
+                    <span class="small-muted">Última actualización: <strong id="last-update">--</strong></span>
+                </div>
+            </div>
+
+            <div id="cards-row" class="row gy-4">
+                <!-- Cards generadas por JS -->
+            </div>
+        </div>
+
+        <script type="text/javascript">
+            // sensores_json debe ser una cadena JSON desde Django (ver vista)
+            let sensores_raw = [];
+            try {
+                sensores_raw = JSON.parse('{{ sensores_json|escapejs }}' || '[]');
+            } catch (e) {
+                console.error('Error parsing sensores JSON:', e);
+                sensores_raw = [];
+            }
+
+            // Actualiza la marca de tiempo del último dato visible
+            (function updateLast() {
+                if (!sensores_raw.length) return;
+                const latest = sensores_raw.reduce((a,b) => {
+                    return new Date(a.fecha_hora) > new Date(b.fecha_hora) ? a : b;
+                });
+                const el = document.getElementById('last-update');
+                if (el) {
+                    const d = new Date(latest.fecha_hora);
+                    el.textContent = isNaN(d) ? latest.fecha_hora : d.toLocaleString();
+                }
+            })();
+
+            // Agrupar lecturas por id_sensor
+            const grouped = sensores_raw.reduce((acc, r) => {
+                const key = r.id_sensor ?? 'unknown';
+                if (!acc[key]) acc[key] = [];
+                acc[key].push(r);
+                return acc;
+            }, {});
+
+            const cardsRow = document.getElementById('cards-row');
+
+            // Plugin para dibujar id_lectura cerca de los puntos (estético)
+            const idLabelPlugin = {
+                id: 'idLabelPlugin',
+                afterDatasetsDraw(chart, args, options) {
+                    const {ctx} = chart;
+                    chart.data.datasets.forEach((dataset, datasetIndex) => {
+                        const meta = chart.getDatasetMeta(datasetIndex);
+                        meta.data.forEach((point, index) => {
+                            const dataObj = dataset.data[index];
+                            const id = dataObj && dataObj.id_lectura ? String(dataObj.id_lectura) : null;
+                            if (!id) return;
+                            ctx.save();
+                            const fontSize = (options && options.fontSize) || 11;
+                            ctx.font = `${fontSize}px Inter, system-ui, sans-serif`;
+                            ctx.textAlign = 'center';
+                            ctx.textBaseline = 'bottom';
+                            // white text with subtle shadow for visibility
+                            ctx.fillStyle = options.color || '#0d6efd';
+                            ctx.fillText(id, point.x, point.y - 8);
+                            ctx.restore();
+                        });
+                    });
+                }
+            };
+
+            Object.keys(grouped).forEach((sensorId, idx) => {
+                const readings = grouped[sensorId];
+
+                // Ordenar por fecha (ascendente)
+                readings.sort((a, b) => new Date(a.fecha_hora) - new Date(b.fecha_hora));
+
+                // Preparar labels y datos (incluimos id_lectura en cada punto)
+                const labels = readings.map(r => {
+                    const d = new Date(r.fecha_hora);
+                    return isNaN(d) ? r.fecha_hora : d.toLocaleString();
+                });
+                const dataPoints = readings.map(r => ({ x: r.fecha_hora, y: Number(r.temperatura), id_lectura: r.id_lectura }));
+
+                // Estadísticas simples
+                const temps = dataPoints.map(p => p.y).filter(v => !isNaN(v));
+                const minTemp = temps.length ? Math.min(...temps) : 0;
+                const maxTemp = temps.length ? Math.max(...temps) : 0;
+                const lastReading = readings[readings.length - 1];
+                const tipoPared = readings[0]?.tipo_pared ?? 'N/D';
+
+                // Crear columna / tarjeta / canvas
+                const col = document.createElement('div');
+                col.className = 'col-12 col-md-6 col-lg-4';
+
+                const card = document.createElement('div');
+                card.className = 'card sensor-card h-100';
+
+                const header = document.createElement('div');
+                header.className = 'card-header custom py-2 px-3';
+
+                const headerLeft = document.createElement('div');
+                headerLeft.innerHTML = `<strong>Sensor ${sensorId}</strong><div class="small-muted">Última: ${lastReading ? new Date(lastReading.fecha_hora).toLocaleString() : '--'}</div>`;
+
+                const headerRight = document.createElement('div');
+                headerRight.innerHTML = `<span class="badge bg-primary badge-round me-1">${readings.length} lect.</span><span class="badge bg-secondary badge-round">${tipoPared}</span>`;
+
+                header.appendChild(headerLeft);
+                header.appendChild(headerRight);
+
+                const cardBody = document.createElement('div');
+                cardBody.className = 'card-body d-flex flex-column';
+
+                const info = document.createElement('p');
+                info.className = 'card-text mb-2 small-muted';
+                info.innerHTML = `Temperatura actual: <strong>${lastReading ? lastReading.temperatura : '--'} °C</strong>`;
+
+                const chartWrap = document.createElement('div');
+                chartWrap.className = 'chart-container mb-2';
+
+                const canvas = document.createElement('canvas');
+                const canvasId = `chart-sensor-${sensorId}-${idx}`;
+                canvas.id = canvasId;
+                canvas.style.width = '100%';
+                canvas.style.height = '100%';
+
+                chartWrap.appendChild(canvas);
+                cardBody.appendChild(info);
+                cardBody.appendChild(chartWrap);
+
+                const footer = document.createElement('div');
+                footer.className = 'card-footer d-flex justify-content-between align-items-center py-2';
+                footer.innerHTML = `<div class="footer-note">Min: <strong>${minTemp}</strong> °C</div><div class="footer-note">Max: <strong>${maxTemp}</strong> °C</div>`;
+
+                card.appendChild(header);
+                card.appendChild(cardBody);
+                card.appendChild(footer);
+                col.appendChild(card);
+                cardsRow.appendChild(col);
+
+                // Crear gráfico con gradiente y estilo Bootstrap
+                const ctx = canvas.getContext('2d');
+                // gradient vertical
+                const gradient = ctx.createLinearGradient(0, 0, 0, canvas.height || 260);
+                gradient.addColorStop(0, 'rgba(13,110,253,0.22)');
+                gradient.addColorStop(0.6, 'rgba(13,110,253,0.08)');
+                gradient.addColorStop(1, 'rgba(13,110,253,0.02)');
+
+                new Chart(ctx, {
+                    type: 'line',
+                    data: {
+                        labels: labels,
+                        datasets: [{
+                            label: 'Temperatura (°C)',
+                            data: dataPoints,
+                            borderColor: '#0d6efd',
+                            backgroundColor: gradient,
+                            tension: 0.35,
+                            fill: true,
+                            pointRadius: 5,
+                            pointBackgroundColor: '#fff',
+                            pointBorderColor: '#0d6efd',
+                            pointHoverRadius: 7,
+                            pointHoverBackgroundColor: '#0d6efd',
+                            spanGaps: true,
+                            borderWidth: 2
+                        }]
+                    },
+                    options: {
+                        responsive: true,
+                        maintainAspectRatio: false,
+                        interaction: { mode: 'nearest', intersect: false },
+                        plugins: {
+                            legend: { position: 'bottom', labels: { boxWidth: 12, padding: 8 } },
+                            tooltip: {
+                                callbacks: {
+                                    title(tooltipItems) {
+                                        const i = tooltipItems[0];
+                                        return i.label;
+                                    },
+                                    label(context) {
+                                        const d = context.raw;
+                                        const val = (d && d.y !== undefined) ? d.y : context.formattedValue;
+                                        const id = d && d.id_lectura ? d.id_lectura : '';
+                                        return `Temperatura: ${val} °C` + (id ? ` — id:${id}` : '');
+                                    }
+                                }
+                            },
+                            // opciones al plugin personalizado
+                            idLabelPlugin: { color: '#0d6efd', fontSize: 11 }
+                        },
+                        scales: {
+                            x: {
+                                ticks: { maxRotation: 0, autoSkip: true, maxTicksLimit: 6 },
+                                grid: { display: false }
+                            },
+                            y: {
+                                beginAtZero: false,
+                                suggestedMin: Math.floor(minTemp - 2),
+                                suggestedMax: Math.ceil(maxTemp + 2),
+                                grid: { color: 'rgba(15,23,42,0.04)' }
+                            }
+                        }
+                    },
+                    plugins: [idLabelPlugin]
+                });
+            });
+        </script>
+
+        <script src="https://cdn.jsdelivr.net/npm/bootstrap@5.3.2/dist/js/bootstrap.bundle.min.js"></script>
+    </body>
+</html>
