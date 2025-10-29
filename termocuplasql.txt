@@ -1,0 +1,26 @@
+
+CREATE TABLE IF NOT EXISTS `estado_sensor` (
+    `id_lectura` INT AUTO_INCREMENT,
+    `id_termocupla` INT NOT NULL,
+    `fecha_hora` DATETIME NOT NULL,
+    `temperatura` DECIMAL NOT NULL,
+    `tipo_pared` VARCHAR(255),
+    `humedad` DECIMAL,
+    CONSTRAINT `pk_estado_sensores_id_lectura` PRIMARY KEY (`id_lectura`)
+);
+
+
+
+CREATE TABLE IF NOT EXISTS `termocupla` (
+    `id_termocupla` INT NOT NULL,
+    `nombre` VARCHAR(255) NOT NULL,
+    `estado` TINYINT(1),
+    `fecha_instalacion` DATETIME NOT NULL,
+    CONSTRAINT `pk_termocupla_id_termocupla` PRIMARY KEY (`id_termocupla`)
+);
+
+
+-- Foreign key constraints
+ALTER TABLE `termocupla` ADD CONSTRAINT `fk_termocupla_id_termocupla` FOREIGN KEY(`id_termocupla`) REFERENCES `estado_sensor`(`id_termocupla`);
+
+COMMIT;

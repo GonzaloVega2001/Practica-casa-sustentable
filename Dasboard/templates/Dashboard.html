@@ -4,73 +4,44 @@
     <head>
         <meta charset="utf-8" />
         <meta name="viewport" content="width=device-width,initial-scale=1" />
-        <title>Dashboard</title>
+        <title>Dashboard-Termocuplas</title>
         <link href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.2/dist/css/bootstrap.min.css" rel="stylesheet">
         <link href="https://cdn.jsdelivr.net/npm/bootstrap-icons@1.10.5/font/bootstrap-icons.css" rel="stylesheet">
         <script src="https://cdn.jsdelivr.net/npm/chart.js@4.4.0/dist/chart.umd.min.js"></script>
-
-        <style>
-            body {
-                background: linear-gradient(180deg, #f8fafc 0%, #eef2ff 100%);
-                min-height: 100vh;
-            }
-            .dashboard-header {
-                display: flex;
-                align-items: center;
-                gap: 12px;
-                margin-bottom: 1.5rem;
-            }
-            .card.sensor-card {
-                border: 0;
-                border-radius: .9rem;
-                box-shadow: 0 8px 20px rgba(20, 24, 40, 0.06);
-                transition: transform .18s ease, box-shadow .18s ease;
-            }
-            .card.sensor-card:hover {
-                transform: translateY(-6px);
-                box-shadow: 0 18px 40px rgba(20, 24, 40, 0.12);
-            }
-            .card-header.custom {
-                background: linear-gradient(90deg, rgba(13,110,253,0.12), rgba(13,110,253,0.04));
-                border-bottom: 1px solid rgba(13,110,253,0.06);
-                display:flex;
-                align-items:center;
-                justify-content:space-between;
-                gap:8px;
-            }
-            .chart-container {
-                height: 260px;
-                position: relative;
-            }
-            .small-muted {
-                font-size: .86rem;
-                color: #6c757d;
-            }
-            .badge-round {
-                border-radius: 999px;
-                font-weight: 600;
-            }
-            .footer-note {
-                font-size: .85rem;
-                color: #6b7280;
-            }
-        </style>
     </head>
-    <body class="p-4">
-        <div class="container py-4">
-            <div class="dashboard-header">
-                <h1 class="h3 mb-0"><i class="bi bi-speedometer2"></i> Dashboard de Sensores</h1>
-                <small class="text-muted ms-2">Visualización de temperaturas</small>
-                <div class="ms-auto">
-                    <span class="small-muted">Última actualización: <strong id="last-update">--</strong></span>
+
+    <body >
+        <!-- Cabecera con logos alineados extremos y título debajo -->
+        <div class="container">
+                <div class="row align-items-center mb-2">
+                    <div class="col-6 d-flex justify-content-start">
+                        <img src="{% static 'img/logoupla.png' %}" alt="Logo UPLA" style="height:54px; width:140px; object-fit:contain;" />
+                    </div>
+                    <div class="col-6 d-flex justify-content-end">
+                        <img src="{% static 'img/logolaptes.png' %}" alt="Logo Proyecto" style="height:120px; width:100px; object-fit:contain;" />
+                    </div>
+                </div>
+                <div class="row mb-3">
+                    <div class="col-12 text-center">
+                        <h1 class="h3 mb-0"><i class="bi bi-speedometer2"></i> Dashboard de Sensores</h1>
+                        <small class="text-muted">Visualización de temperaturas</small>
+                    </div>
+                </div>
+                <div id="cards-row" class="row gy-4">
                 </div>
             </div>
-
-            <div id="cards-row" class="row gy-4">
-                <!-- Cards generadas por JS -->
-            </div>
         </div>
-
+        <br>
+        <footer class="bg-dark text-light">
+                            <div class="container py-3">
+                                <div class="d-flex justify-content-center">
+                                    <small id="footer-info">Sitio LAPTES-FING desarrollado por
+                                        <a href="https://www.upla.cl/noticias/contactanos/" target="_blank" class="text-white fw-bold text-decoration-none ms-1">Dirección General de Comunicaciones</a>
+                                    </small>
+                                </div>
+                            </div>
+                        </footer>
+        
         <script type="text/javascript">
             // sensores_json debe ser una cadena JSON desde Django (ver vista)
             let sensores_raw = [];
@@ -94,9 +65,9 @@
                 }
             })();
 
-            // Agrupar lecturas por id_sensor
+            // Agrupar lecturas por id_termocupla
             const grouped = sensores_raw.reduce((acc, r) => {
-                const key = r.id_sensor ?? 'unknown';
+                const key = r.id_termocupla ?? 'unknown';
                 if (!acc[key]) acc[key] = [];
                 acc[key].push(r);
                 return acc;
@@ -104,66 +75,92 @@
 
             const cardsRow = document.getElementById('cards-row');
 
-            // Plugin para dibujar id_lectura cerca de los puntos (estético)
-            const idLabelPlugin = {
-                id: 'idLabelPlugin',
-                afterDatasetsDraw(chart, args, options) {
-                    const {ctx} = chart;
-                    chart.data.datasets.forEach((dataset, datasetIndex) => {
-                        const meta = chart.getDatasetMeta(datasetIndex);
-                        meta.data.forEach((point, index) => {
-                            const dataObj = dataset.data[index];
-                            const id = dataObj && dataObj.id_lectura ? String(dataObj.id_lectura) : null;
-                            if (!id) return;
-                            ctx.save();
-                            const fontSize = (options && options.fontSize) || 11;
-                            ctx.font = `${fontSize}px Inter, system-ui, sans-serif`;
-                            ctx.textAlign = 'center';
-                            ctx.textBaseline = 'bottom';
-                            // white text with subtle shadow for visibility
-                            ctx.fillStyle = options.color || '#0d6efd';
-                            ctx.fillText(id, point.x, point.y - 8);
-                            ctx.restore();
-                        });
-                    });
-                }
-            };
+            // Helper: formato hora HH:00
+            function pad(n){ return n < 10 ? '0' + n : String(n); }
+            function formatHourLabel(d){ return pad(d.getHours()) + ':00'; }
 
-            Object.keys(grouped).forEach((sensorId, idx) => {
+            // Crear etiquetas para las últimas 24 horas (orden ascendente)
+            const now = new Date();
+            const hours = [];
+            for (let i = 23; i >= 0; i--) {
+                const h = new Date(now);
+                h.setMinutes(0,0,0);
+                h.setHours(now.getHours() - i);
+                hours.push(h);
+            }
+            const labels24 = hours.map(formatHourLabel);
+
+            const _sensorKeys = Object.keys(grouped);
+            const _totalSensors = _sensorKeys.length;
+            _sensorKeys.forEach((sensorId, idx) => {
                 const readings = grouped[sensorId];
 
                 // Ordenar por fecha (ascendente)
                 readings.sort((a, b) => new Date(a.fecha_hora) - new Date(b.fecha_hora));
 
-                // Preparar labels y datos (incluimos id_lectura en cada punto)
-                const labels = readings.map(r => {
-                    const d = new Date(r.fecha_hora);
-                    return isNaN(d) ? r.fecha_hora : d.toLocaleString();
+                // Calcular promedio por hora para las últimas 24 horas (temperatura)
+                const hourlyAvg = hours.map(hourStart => {
+                    const hourEnd = new Date(hourStart);
+                    hourEnd.setHours(hourStart.getHours() + 1);
+                    const slot = readings
+                        .map(r => ({ d: new Date(r.fecha_hora), t: Number(r.temperatura) }))
+                        .filter(x => !isNaN(x.t) && x.d >= hourStart && x.d < hourEnd)
+                        .map(x => x.t);
+                    if (!slot.length) return null;
+                    const s = slot.reduce((a,b) => a + b, 0);
+                    return +(s / slot.length).toFixed(2);
                 });
-                const dataPoints = readings.map(r => ({ x: r.fecha_hora, y: Number(r.temperatura), id_lectura: r.id_lectura }));
 
-                // Estadísticas simples
-                const temps = dataPoints.map(p => p.y).filter(v => !isNaN(v));
+                // Calcular promedio por hora para humedad (intenta varias claves posibles)
+                function getHumidityValue(r){
+                    // posibles nombres de campo en los datos
+                    return Number(r.humedad ?? r.humedad_relativa ?? r.humidity ?? r.hum ?? r.humedad_porcentaje ?? NaN);
+                }
+                const hourlyHum = hours.map(hourStart => {
+                    const hourEnd = new Date(hourStart);
+                    hourEnd.setHours(hourStart.getHours() + 1);
+                    const slot = readings
+                        .map(r => ({ d: new Date(r.fecha_hora), h: getHumidityValue(r) }))
+                        .filter(x => !isNaN(x.h) && x.d >= hourStart && x.d < hourEnd)
+                        .map(x => x.h);
+                    if (!slot.length) return null;
+                    const s = slot.reduce((a,b) => a + b, 0);
+                    return +(s / slot.length).toFixed(2);
+                });
+
+                // Estadísticas simples sobre los valores mostrados (temperatura)
+                const temps = hourlyAvg.filter(v => v !== null);
                 const minTemp = temps.length ? Math.min(...temps) : 0;
                 const maxTemp = temps.length ? Math.max(...temps) : 0;
+                const overallAvg = temps.length ? +(temps.reduce((a,b)=>a+b,0)/temps.length).toFixed(2) : null;
+
+                // Estadísticas para humedad
+                const hums = hourlyHum.filter(v => v !== null);
+                const minHum = hums.length ? Math.min(...hums) : 0;
+                const maxHum = hums.length ? Math.max(...hums) : 0;
+                const overallHumAvg = hums.length ? +(hums.reduce((a,b)=>a+b,0)/hums.length).toFixed(2) : null;
+
+                // Última lectura cruda (para mostrar valor actual)
                 const lastReading = readings[readings.length - 1];
                 const tipoPared = readings[0]?.tipo_pared ?? 'N/D';
 
-                // Crear columna / tarjeta / canvas
+                // Crear columna y tarjeta
                 const col = document.createElement('div');
-                col.className = 'col-12 col-md-6 col-lg-4';
+                // Un sensor por fila: ocupar todo el ancho
+                col.className = 'col-12 mb-3';
 
                 const card = document.createElement('div');
                 card.className = 'card sensor-card h-100';
 
                 const header = document.createElement('div');
-                header.className = 'card-header custom py-2 px-3';
+                header.className = 'card-header custom py-2 px-3 d-flex justify-content-between align-items-start';
 
                 const headerLeft = document.createElement('div');
-                headerLeft.innerHTML = `<strong>Sensor ${sensorId}</strong><div class="small-muted">Última: ${lastReading ? new Date(lastReading.fecha_hora).toLocaleString() : '--'}</div>`;
+                headerLeft.innerHTML = `<strong>Termocupla ${sensorId}</strong><div class="small-muted">Última: ${lastReading ? new Date(lastReading.fecha_hora).toLocaleString() : '--'}</div>`;
 
                 const headerRight = document.createElement('div');
-                headerRight.innerHTML = `<span class="badge bg-primary badge-round me-1">${readings.length} lect.</span><span class="badge bg-secondary badge-round">${tipoPared}</span>`;
+                // Se quitan las badges/botones; solo mostrar tipo de pared en texto pequeño
+                headerRight.innerHTML = `<div class="circle-label">${tipoPared}</div>`;
 
                 header.appendChild(headerLeft);
                 header.appendChild(headerRight);
@@ -173,7 +170,10 @@
 
                 const info = document.createElement('p');
                 info.className = 'card-text mb-2 small-muted';
-                info.innerHTML = `Temperatura actual: <strong>${lastReading ? lastReading.temperatura : '--'} °C</strong>`;
+                // obtener humedad actual (si existe en la lectura)
+                const currentHum = lastReading ? (getHumidityValue(lastReading)) : null;
+                const humText = (currentHum !== null && !isNaN(currentHum)) ? `${currentHum} %` : '--';
+                info.innerHTML = `Temperatura actual: <strong>${lastReading ? lastReading.temperatura : '--'} °C</strong> — Humedad: <strong>${humText}</strong>`;
 
                 const chartWrap = document.createElement('div');
                 chartWrap.className = 'chart-container mb-2';
@@ -182,15 +182,29 @@
                 const canvasId = `chart-sensor-${sensorId}-${idx}`;
                 canvas.id = canvasId;
                 canvas.style.width = '100%';
-                canvas.style.height = '100%';
+                // altura fija para que cada tarjeta tenga una gráfica consistente
+                canvas.style.height = '260px';
 
                 chartWrap.appendChild(canvas);
                 cardBody.appendChild(info);
                 cardBody.appendChild(chartWrap);
 
                 const footer = document.createElement('div');
-                footer.className = 'card-footer d-flex justify-content-between align-items-center py-2';
-                footer.innerHTML = `<div class="footer-note">Min: <strong>${minTemp}</strong> °C</div><div class="footer-note">Max: <strong>${maxTemp}</strong> °C</div>`;
+                footer.className = 'card-footer d-flex justify-content-between align-items-center py-2 flex-wrap';
+                // Mostrar min/max temperatura y min/max humedad
+                footer.innerHTML = `<div class="footer-note">Min: <strong>${minTemp}</strong> °C — Max: <strong>${maxTemp}</strong> °C</div><div class="footer-note">Min H: <strong>${minHum}</strong>% — Max H: <strong>${maxHum}</strong>%</div>`;
+                if (overallAvg !== null) {
+                    const avgEl = document.createElement('div');
+                    avgEl.className = 'ms-2';
+                    avgEl.innerHTML = `Promedio T: <strong>${overallAvg}</strong> °C`;
+                    footer.appendChild(avgEl);
+                }
+                if (overallHumAvg !== null) {
+                    const avgHel = document.createElement('div');
+                    avgHel.className = 'ms-2';
+                    avgHel.innerHTML = `Promedio H: <strong>${overallHumAvg}</strong> %`;
+                    footer.appendChild(avgHel);
+                }
 
                 card.appendChild(header);
                 card.appendChild(cardBody);
@@ -198,71 +212,116 @@
                 col.appendChild(card);
                 cardsRow.appendChild(col);
 
-                // Crear gráfico con gradiente y estilo Bootstrap
+                // insertar separador horizontal entre tarjetas (excepto después del último)
+                if (idx < _totalSensors - 1) {
+                    const sep = document.createElement('hr');
+                    sep.className = 'my-3';
+                    // estilado sutil
+                    sep.style.border = '0';
+                    sep.style.borderTop = '1px solid rgba(0,0,0,0.08)';
+                    cardsRow.appendChild(sep);
+                }
+
+                // Crear grafico con gradiente para la serie promedio por hora
                 const ctx = canvas.getContext('2d');
-                // gradient vertical
                 const gradient = ctx.createLinearGradient(0, 0, 0, canvas.height || 260);
                 gradient.addColorStop(0, 'rgba(13,110,253,0.22)');
                 gradient.addColorStop(0.6, 'rgba(13,110,253,0.08)');
                 gradient.addColorStop(1, 'rgba(13,110,253,0.02)');
 
+                const datasetMain = {
+                    label: 'Temperatura promedio por hora (°C)',
+                    data: hourlyAvg,
+                    borderColor: '#0d6efd',
+                    backgroundColor: gradient,
+                    tension: 0.35,
+                    fill: true,
+                    pointRadius: 4,
+                    pointBackgroundColor: '#fff',
+                    pointBorderColor: '#0d6efd',
+                    pointHoverRadius: 6,
+                    spanGaps: true,
+                    borderWidth: 2,
+                    yAxisID: 'y',
+                };
+
+                // dataset de humedad (segunda serie)
+                const datasetHum = {
+                    label: 'Humedad promedio por hora (%)',
+                    data: hourlyHum,
+                    borderColor: '#20c997',
+                    backgroundColor: 'rgba(32,201,151,0.08)',
+                    tension: 0.25,
+                    fill: false,
+                    pointRadius: 3,
+                    pointBackgroundColor: '#20c997',
+                    pointBorderColor: '#fff',
+                    pointHoverRadius: 5,
+                    spanGaps: true,
+                    borderWidth: 2,
+                    yAxisID: 'y1',
+                };
+
+                const datasets = [datasetMain, datasetHum];
+
                 new Chart(ctx, {
                     type: 'line',
                     data: {
-                        labels: labels,
-                        datasets: [{
-                            label: 'Temperatura (°C)',
-                            data: dataPoints,
-                            borderColor: '#0d6efd',
-                            backgroundColor: gradient,
-                            tension: 0.35,
-                            fill: true,
-                            pointRadius: 5,
-                            pointBackgroundColor: '#fff',
-                            pointBorderColor: '#0d6efd',
-                            pointHoverRadius: 7,
-                            pointHoverBackgroundColor: '#0d6efd',
-                            spanGaps: true,
-                            borderWidth: 2
-                        }]
+                        labels: labels24,
+                        datasets: datasets
                     },
                     options: {
                         responsive: true,
                         maintainAspectRatio: false,
                         interaction: { mode: 'nearest', intersect: false },
                         plugins: {
-                            legend: { position: 'bottom', labels: { boxWidth: 12, padding: 8 } },
+                            // Ocultar leyenda para eliminar los botones interactivos
+                            legend: { display: false },
                             tooltip: {
                                 callbacks: {
-                                    title(tooltipItems) {
-                                        const i = tooltipItems[0];
-                                        return i.label;
-                                    },
+                                    title(items) { return items[0].label; },
                                     label(context) {
-                                        const d = context.raw;
-                                        const val = (d && d.y !== undefined) ? d.y : context.formattedValue;
-                                        const id = d && d.id_lectura ? d.id_lectura : '';
-                                        return `Temperatura: ${val} °C` + (id ? ` — id:${id}` : '');
+                                        const val = context.raw;
+                                        const label = context.dataset && context.dataset.label ? context.dataset.label.toLowerCase() : '';
+                                        if (val === null || val === undefined) return 'Sin datos';
+                                        if (label.includes('humedad')) return `Humedad: ${val} %`;
+                                        return `Temperatura: ${val} °C`;
                                     }
                                 }
-                            },
-                            // opciones al plugin personalizado
-                            idLabelPlugin: { color: '#0d6efd', fontSize: 11 }
+                            }
                         },
                         scales: {
                             x: {
-                                ticks: { maxRotation: 0, autoSkip: true, maxTicksLimit: 6 },
+                                // Mostrar las 24 horas (sin auto-skip) para que aparezca una etiqueta por hora
+                                ticks: {
+                                    autoSkip: false,
+                                    maxRotation: 0,
+                                    // usar tamaño de fuente más pequeño para evitar solapamientos
+                                    font: { size: 11 },
+                                    callback(value, index) {
+                                        // `this.chart.data.labels` contiene las etiquetas horarias
+                                        return this.chart && this.chart.data && this.chart.data.labels ? this.chart.data.labels[index] : value;
+                                    }
+                                },
                                 grid: { display: false }
                             },
                             y: {
                                 beginAtZero: false,
                                 suggestedMin: Math.floor(minTemp - 2),
                                 suggestedMax: Math.ceil(maxTemp + 2),
-                                grid: { color: 'rgba(15,23,42,0.04)' }
+                                grid: { color: 'rgba(15,23,42,0.04)' },
+                                position: 'left',
+                            },
+                            y1: {
+                                beginAtZero: true,
+                                suggestedMin: Math.max(0, Math.floor(minHum - 5)),
+                                suggestedMax: Math.min(100, Math.ceil(maxHum + 5)),
+                                grid: { display: false },
+                                position: 'right',
+                                ticks: { callback(v){ return v + ' %'; } }
                             }
                         }
-                    },
-                    plugins: [idLabelPlugin]
+                    }
                 });
             });
         </script>

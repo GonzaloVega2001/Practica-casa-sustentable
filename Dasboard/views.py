@@ -7,10 +7,11 @@ def index(request):
     # 1. Obtenemos los datos directamente como un QuerySet de diccionarios
     sensores_qs = EstadoSensor.objects.all().values(
         'id_lectura', 
-        'id_sensor', 
+        'id_termocupla', 
         'fecha_hora', 
         'temperatura', 
-        'tipo_pared'
+        'tipo_pared',
+        'humedad',
     )
     
     # 2. Convertimos el QuerySet a una lista simple de Python
