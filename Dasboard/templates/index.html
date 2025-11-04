@@ -1,0 +1,444 @@
+{% load static %}
+<!doctype html>
+<html lang="es">
+  <head>
+    <meta charset="utf-8" />
+    <meta name="viewport" content="width=device-width,initial-scale=1" />
+    <title>Sistema de Monitoreo - Termocuplas</title>
+    <link href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.2/dist/css/bootstrap.min.css" rel="stylesheet">
+    <link href="https://cdn.jsdelivr.net/npm/bootstrap-icons@1.10.5/font/bootstrap-icons.css" rel="stylesheet">
+    <script src="https://cdn.jsdelivr.net/npm/chart.js@4.4.0/dist/chart.umd.min.js"></script>
+  </head>
+
+  <!-- ✅ Body corregido -->
+  <body class="bg-image">
+    <div>
+      <!-- Sidebar -->
+      <div class="sidebar bg-dark text-white" id="sidebar">
+        <div class="sidebar-header p-3">
+          <img src="{% static 'img/logoupla.png' %}" alt="Logo UPLA" class="logo-sidebar mb-3">
+          <img src="{% static 'img/logolaptes.png' %}" alt="Logo Proyecto" class="logo-sidebar">
+        </div>
+        <div class="sidebar-menu">
+          <ul class="nav flex-column">
+            <li class="nav-item">
+              <a href="#" class="nav-link text-white active" data-view="dashboard">
+                <i class="bi bi-speedometer2 me-2"></i> Dashboard General
+              </a>
+            </li>
+            <li class="nav-item">
+              <a href="" class="nav-link text-white" data-view="dashboard">
+                <i class="bi bi-speedometer2 me-2"></i> Exportar CSV / Excel
+              </a>
+            </li>
+
+            <li class="nav-item">
+              <a href="#" class="nav-link text-white" data-bs-toggle="collapse" data-bs-target="#sensoresSubmenu" aria-expanded="false" aria-controls="sensoresSubmenu">
+                <i class="bi bi-thermometer-half me-2"></i> Sensores <i class="bi bi-chevron-down ms-2"></i>
+              </a>
+              <div class="collapse" id="sensoresSubmenu">
+                <ul class="nav flex-column ms-3">
+                  <li class="nav-item">
+                    <a href="#" class="nav-link text-white" data-view="sensor" data-sensor="all">Todos los Sensores</a>
+                  </li>
+                  {% for sensor in sensor_keys %}
+                  <li class="nav-item">
+                    <a href="#" class="nav-link text-white" data-view="sensor" data-sensor="{{ sensor }}">Sensor {{ sensor }}</a>
+                  </li>
+                  {% empty %}
+                  <li class="nav-item"><span class="nav-link text-white small">No hay sensores</span></li>
+                  {% endfor %}
+                </ul>
+              </div>
+            </li>
+          </ul>
+        </div>
+      </div>
+
+      <!-- ✅ Main Content -->
+      <div class="main-content">
+        <div class="container-fluid p-4">
+          <div class="dashboard-wrapper d-flex justify-content-center">
+            <div class="dashboard-panel w-100">
+              <div class="panel-title text-center py-3">
+                <h2 class="m-0">Dashboard de Sensores</h2>
+                <small class="text-muted">Visualización de temperaturas</small>
+              </div>
+              <div class="panel-body p-3">
+                <div class="row mb-2">
+                  <div class="col-12">
+                    <h1 class="h5 visually-hidden" id="page-title">
+                      <i class="bi bi-speedometer2"></i> Dashboard General
+                    </h1>
+                  </div>
+                </div>
+                <div id="contenedor-sensores" class="row gy-4">
+                  <!-- partial HTML will be inserted here -->
+                </div>
+              </div>
+            </div>
+          </div>
+        </div>
+
+        <!-- Footer -->
+        <footer class="bg-dark text-light mt-auto">
+          <div class="container py-3">
+            <div class="d-flex justify-content-center">
+              <small id="footer-info">Sitio LAPTES-FING desarrollado por
+                <a href="https://www.upla.cl/noticias/contactanos/" target="_blank" class="text-white fw-bold text-decoration-none ms-1">
+                  Dirección General de Comunicaciones
+                </a>
+              </small>
+            </div>
+          </div>
+        </footer>
+      </div>
+    </div>
+
+
+        <!-- Styles -->
+        <style>
+            .bg-image {
+                background-image: url("{% static 'img/background.jpg' %}");
+                background-size: cover;
+                background-position: center;
+                background-repeat: no-repeat;
+            }
+            .sidebar { width:260px; min-height:100vh; position:fixed; left:0; top:0; z-index:100; }
+            .logo-sidebar { max-width:140px; height:auto; display:block; margin:0 auto; }
+            .sidebar-menu { padding:1rem; }
+            .nav-link { padding:0.5rem 1rem; border-radius:0.375rem; margin-bottom:0.25rem; }
+            .nav-link:hover { background-color: rgba(255,255,255,0.1); }
+            .nav-link.active { background-color: rgba(255,255,255,0.2); }
+            .main-content { margin-left:260px; min-height:100vh; display:flex; flex-direction:column; }
+
+            /* Centrar el panel y dejar espacio en blanco a la derecha (panel fijo centrado) */
+            .dashboard-wrapper { justify-content: center; }
+            .dashboard-panel { width: 100%;}
+
+            .chart-container { padding:.6rem; border-radius:.5rem; background:rgba(255,255,255,0.85); display:flex; flex-direction:column; gap:.5rem; }
+            .chart-row { flex:1 1 auto; display:flex; flex-direction:column; min-height:220px; }
+            .chart-row .row { flex:1 1 auto; margin:0; }
+            .chart-row .col-12.col-sm-8, .chart-row .col-12.col-sm-4 { display:flex; flex-direction:column; gap:.25rem; }
+          
+            .chart-row canvas { width:100% !important;  display:block; flex:1 1 auto; }
+            /* clases para controlar altura (copiadas de Dashboard.html) */
+            /* equal heights for both charts */
+            .chart-temp-canvas, .chart-hum-canvas { height: 200px !important; display:block; }
+            @media (min-width: 768px) {
+                .chart-temp-canvas, .chart-hum-canvas { height: 240px !important; }
+            }
+            @media (min-width: 1200px) {
+                .chart-temp-canvas, .chart-hum-canvas { height: 260px !important; }
+            }
+            .combined-legend{ font-size:13px; color:#374151; }
+            .legend-dot{ width:12px; height:12px; display:inline-block; border-radius:50%; margin-right:6px; vertical-align:middle; box-shadow:0 0 0 3px rgba(0,0,0,0.03) inset; }
+            .legend-item{ display:inline-flex; align-items:center; gap:6px; padding:4px 8px; background: transparent; border-radius:6px; }
+            /* Hacer que el contenedor de tarjetas tenga overflow y sea scrollable */
+            .panel-body {
+                /* limitar altura para permitir scroll interno dentro del panel */
+                max-height: calc(100vh - 200px);
+                overflow-y: auto;
+                -webkit-overflow-scrolling: touch;
+                padding-right: 8px; /* espacio para el scrollbar */
+            }
+
+            /* Asegurar que el contenedor donde se insertan las tarjetas use overflow en X oculto */
+            #contenedor-sensores { overflow-x: hidden; }
+        </style>
+
+        <!-- Scripts -->
+        <script>
+            (function(){
+                const cardsRow = document.getElementById('contenedor-sensores');
+                // Keep references to created Chart instances so we can resize/destroy them
+                window.__chartInstances = window.__chartInstances || {};
+                const chartInstances = window.__chartInstances;
+
+                function destroyAllCharts(){
+                    try{
+                        Object.keys(chartInstances).forEach(k=>{
+                            try{ chartInstances[k].destroy(); }catch(e){}
+                            try{ delete chartInstances[k]; }catch(e){}
+                        });
+                    }catch(e){ console.warn('Error al destruir charts', e); }
+                }
+
+                // debounced resize helper
+                function debounce(fn, wait){ let t; return function(...args){ clearTimeout(t); t = setTimeout(()=>fn.apply(this,args), wait); }; }
+
+                // on resize, ask each chart to resize
+                const handleResize = debounce(()=>{
+                    try{ Object.values(chartInstances).forEach(c=>{ if(c && typeof c.resize==='function') c.resize(); }); }
+                    catch(e){ console.warn('Error redimensionando charts', e); }
+                }, 200);
+
+                window.addEventListener('resize', handleResize);
+
+                // Observe the cards container to handle layout changes (e.g., devtools docked)
+                if(window.ResizeObserver){
+                    try{
+                        const ro = new ResizeObserver(debounce(()=>{
+                            try{ Object.values(chartInstances).forEach(c=>{ if(c && typeof c.resize==='function') c.resize(); }); }
+                            catch(e){ console.warn('ResizeObserver error', e); }
+                        }, 150));
+                        ro.observe(cardsRow);
+                    }catch(e){ /* ignore */ }
+                }
+
+                function setupMenu(){
+                    const menuLinks = document.querySelectorAll('[data-view]');
+                    menuLinks.forEach(link=>{
+                        link.addEventListener('click', function(e){
+                            e.preventDefault();
+                            menuLinks.forEach(l=>l.classList.remove('active'));
+                            this.classList.add('active');
+                            const view = this.dataset.view; const sensor = this.dataset.sensor;
+                            if(view==='dashboard'){
+                                saveState({view:'dashboard', sensor:null});
+                                setLayoutForView('dashboard');
+                                loadSensors();
+                            } else if(view==='sensor') {
+                                // sensor may be 'all' or a specific id
+                                saveState({view:'sensor', sensor: sensor});
+                                setLayoutForView('sensor');
+                                if(sensor==='all') loadSensors(); else loadSensor(sensor);
+                            }
+                        });
+                    });
+                }
+
+                function saveState(state){
+                    try{ localStorage.setItem('dashboardState', JSON.stringify(state)); }catch(e){ console.warn('No se pudo guardar estado en localStorage', e); }
+                }
+
+                function setActiveMenu(view,sensor){
+                    const menuLinks = document.querySelectorAll('[data-view]');
+                    menuLinks.forEach(l=>{
+                        l.classList.remove('active');
+                        const v = l.dataset.view; const s = l.dataset.sensor;
+                        if(v===view){
+                            if(view==='dashboard'){ l.classList.add('active'); }
+                            else if(view==='sensor'){
+                                // exact match sensor or 'all'
+                                if(String(s)===String(sensor)) l.classList.add('active');
+                            }
+                        }
+                    });
+                    // manejar el estado del collapse del menú "Sensores"
+                    const submenu = document.getElementById('sensoresSubmenu');
+                    const toggleLink = document.querySelector('[data-bs-target="#sensoresSubmenu"]');
+                    if(view==='sensor'){
+                        if(submenu && !submenu.classList.contains('show')) submenu.classList.add('show');
+                        if(toggleLink) toggleLink.setAttribute('aria-expanded','true');
+                    } else {
+                        if(submenu && submenu.classList.contains('show')) submenu.classList.remove('show');
+                        if(toggleLink) toggleLink.setAttribute('aria-expanded','false');
+                    }
+                }
+
+                function setLayoutForView(view, sensor){
+                    // Always keep the panel centered to leave blank space to the right
+                    const wrapper = document.querySelector('.dashboard-wrapper');
+                    if(!wrapper) return;
+
+                    // Si es la vista de un sensor específico (y NO es 'all')
+                    if(view === 'sensor' && sensor && sensor !== 'all') {
+                        // Alinear a la izquierda para que ocupe todo el ancho
+                        wrapper.classList.remove('justify-content-center');
+                        wrapper.classList.add('justify-content-start');
+                    } else {
+                        // Si es el dashboard general o la vista "Todos los Sensores"
+                        // Mantener el layout centrado original
+                        wrapper.classList.add('justify-content-center');
+                        wrapper.classList.remove('justify-content-start');
+                    }
+                }
+
+                function restoreState(){
+                    try{
+                        const raw = localStorage.getItem('dashboardState');
+                        if(!raw) return loadSensors();
+                        const state = JSON.parse(raw);
+                        if(!state) return loadSensors();
+                        if(state.view==='dashboard'){
+                            setActiveMenu('dashboard', null);
+                            setLayoutForView('dashboard');
+                            loadSensors();
+                        } else if(state.view==='sensor'){
+                            // if sensor is null or 'all', load all
+                            if(!state.sensor || state.sensor==='all'){
+                                setActiveMenu('sensor','all');
+                                setLayoutForView('dashboard');
+                                loadSensors();
+                            } else {
+                                setActiveMenu('sensor', state.sensor);
+                                setLayoutForView('sensor');
+                                loadSensor(state.sensor);
+                            }
+                        } else {
+                            loadSensors();
+                        }
+                    }catch(e){ console.warn('No se pudo restaurar estado del dashboard', e); loadSensors(); }
+                }
+
+                function loadSensors(){
+                    // remove any previous charts before replacing DOM
+                    destroyAllCharts();
+                    cardsRow.innerHTML = '';
+                    const partialUrl = '/dashboard/partial/?_=' + Date.now();
+                    const dataUrl = '/dashboard/data/?_=' + Date.now();
+                    Promise.all([
+                        fetch(partialUrl).then(r=>{ if(!r.ok) return r.text().then(t=>{throw new Error('Error partial: '+r.status+' - '+t)}); return r.text(); }),
+                        fetch(dataUrl).then(r=>{ const ct = r.headers.get('content-type')||''; if(!r.ok) return r.text().then(t=>{throw new Error('Error data: '+r.status+' - '+t)}); if(ct.indexOf('application/json')===-1) return r.text().then(t=>{throw new Error('Respuesta data no JSON: '+t)}); return r.json(); })
+                    ]).then(([partialHtml,data])=>{ cardsRow.innerHTML = partialHtml; initChartsFromData(data); }).catch(err=>{ console.error(err); cardsRow.innerHTML = '<div class="col-12"><div class="alert alert-danger">No se pudieron cargar los datos del dashboard. Revisa la consola para más detalles.</div></div>'; });
+                }
+
+                function loadSensor(sensorId){
+                    // Cargar solo el partial del sensor solicitado para evitar que
+                    // se rendericen todas las tarjetas y luego se oculten (parpadeo)
+                    // destruir charts viejos antes de reemplazar el contenido
+                    destroyAllCharts();
+                    cardsRow.innerHTML = '';
+                    const partialUrl = '/dashboard/partial/?sensor=' + encodeURIComponent(sensorId) + '&_=' + Date.now();
+                    const dataUrl = '/dashboard/data/?_=' + Date.now();
+                    Promise.all([
+                        fetch(partialUrl).then(r=>{ if(!r.ok) return r.text().then(t=>{throw new Error('Error partial: '+r.status+' - '+t)}); return r.text(); }),
+                        fetch(dataUrl).then(r=>{ const ct = r.headers.get('content-type')||''; if(!r.ok) return r.text().then(t=>{throw new Error('Error data: '+r.status+' - '+t)}); if(ct.indexOf('application/json')===-1) return r.text().then(t=>{throw new Error('Respuesta data no JSON: '+t)}); return r.json(); })
+                    ]).then(([partialHtml,data])=>{ cardsRow.innerHTML = partialHtml; initChartsFromData(data); }).catch(err=>{ console.error(err); cardsRow.innerHTML = '<div class="col-12"><div class="alert alert-danger">No se pudieron cargar los datos del dashboard. Revisa la consola para más detalles.</div></div>'; });
+                }
+
+                function initChartsFromData(sensores_raw){
+                    const grouped = sensores_raw.reduce((acc,r)=>{ const k = r.id_termocupla ?? 'unknown'; if(!acc[k]) acc[k]=[]; acc[k].push(r); return acc; }, {});
+                    const now=new Date(); const hours=[]; for(let i=23;i>=0;i--){ const h=new Date(now); h.setMinutes(0,0,0); h.setHours(now.getHours()-i); hours.push(h);} const labels24 = hours.map(d=> (d.getHours()<10? '0'+d.getHours():d.getHours())+':00');
+
+                    const cards = cardsRow.querySelectorAll('.sensor-card');
+                    cards.forEach(card=>{
+                        const sensorId = card.dataset.sensor;
+                        const readings = (grouped[sensorId]||[]).slice().sort((a,b)=> new Date(a.fecha_hora)-new Date(b.fecha_hora));
+                        const hourlyAvg = hours.map(h=>{ const end=new Date(h); end.setHours(h.getHours()+1); const slot = readings.map(r=>({d:new Date(r.fecha_hora),t: Number(r.temperatura)})).filter(x=>!isNaN(x.t) && x.d>=h && x.d<end).map(x=>x.t); if(!slot.length) return null; const s=slot.reduce((a,b)=>a+b,0); return +(s/slot.length).toFixed(2); });
+                        const getHumidityValue = r=> Number(r.humedad ?? r.humedad_relativa ?? r.humidity ?? r.hum ?? r.humedad_porcentaje ?? NaN);
+                        const hourlyHum = hours.map(h=>{ const end=new Date(h); end.setHours(h.getHours()+1); const slot = readings.map(r=>({d:new Date(r.fecha_hora),h:getHumidityValue(r)})).filter(x=>!isNaN(x.h) && x.d>=h && x.d<end).map(x=>x.h); if(!slot.length) return null; const s=slot.reduce((a,b)=>a+b,0); return +(s/slot.length).toFixed(2); });
+
+                        const temps = hourlyAvg.filter(v=>v!==null); const minTemp = temps.length?Math.min(...temps):null; const maxTemp = temps.length?Math.max(...temps):null; const overallAvg = temps.length?+(temps.reduce((a,b)=>a+b,0)/temps.length).toFixed(2):null;
+                        const hums = hourlyHum.filter(v=>v!==null); const minHum = hums.length?Math.min(...hums):null; const maxHum = hums.length?Math.max(...hums):null; const overallHumAvg = hums.length?+(hums.reduce((a,b)=>a+b,0)/hums.length).toFixed(2):null;
+                        const lastReading = readings[readings.length-1];
+
+                        const lastEl = card.querySelector('.last-reading'); if(lastEl) lastEl.textContent = 'Última: ' + (lastReading? new Date(lastReading.fecha_hora).toLocaleString() : '--');
+                        const tipoParedEl = card.querySelector('.tipo-pared'); if(tipoParedEl) tipoParedEl.textContent = readings[0]?.tipo_pared ?? '--';
+                        const curTempEl = card.querySelector('.current-temp'); if(curTempEl) curTempEl.textContent = lastReading? lastReading.temperatura : '--';
+                        const curHumEl = card.querySelector('.current-hum'); if(curHumEl) curHumEl.textContent = lastReading? (getHumidityValue(lastReading)||'--') : '--';
+                        const minMaxTemp = card.querySelector('.min-max-temp'); if(minMaxTemp) minMaxTemp.innerHTML = 'Min: <strong>' + (minTemp!==null?minTemp:'--') + '</strong> °C — Max: <strong>' + (maxTemp!==null?maxTemp:'--') + '</strong> °C';
+                        const minMaxHum = card.querySelector('.min-max-hum'); if(minMaxHum) minMaxHum.innerHTML = 'Min H: <strong>' + (minHum!==null?minHum:'--') + '</strong>% — Max H: <strong>' + (maxHum!==null?maxHum:'--') + '</strong>%';
+                        const avgT = card.querySelector('.avg-t'); if(avgT) avgT.innerHTML = 'Promedio T: <strong>' + (overallAvg!==null?overallAvg:'--') + '</strong> °C';
+                        const avgH = card.querySelector('.avg-h'); if(avgH) avgH.innerHTML = 'Promedio H: <strong>' + (overallHumAvg!==null?overallHumAvg:'--') + '</strong> %';
+
+                                    const canvasTemp = card.querySelector('canvas[id^="chart-temp"]');
+                                    const canvasHum = card.querySelector('canvas[id^="chart-hum"]');
+                                    try{
+                                        if(canvasTemp){
+                                            const ctxT = canvasTemp.getContext('2d');
+                                            const heightT = canvasTemp.height || canvasTemp.clientHeight || 260;
+                                            const gradientT = ctxT.createLinearGradient(0,0,0,heightT);
+                                            gradientT.addColorStop(0,'rgba(13,110,253,0.22)'); gradientT.addColorStop(0.6,'rgba(13,110,253,0.08)'); gradientT.addColorStop(1,'rgba(13,110,253,0.02)');
+                                            const datasetTemp = {
+                                                label: 'Temperatura promedio por hora (°C)',
+                                                data: hourlyAvg,
+                                                borderColor: '#0d6efd',
+                                                backgroundColor: gradientT,
+                                                tension: 0.35,
+                                                fill: true,
+                                                pointRadius: 0,
+                                                pointBackgroundColor: '#fff',
+                                                pointBorderColor: '#0d6efd',
+                                                pointHoverRadius: 6,
+                                                spanGaps: false,
+                                                borderWidth: 2,
+                                                yAxisID: 'y'
+                                            };
+
+                                            const createdChartT = new Chart(ctxT, {
+                                                type: 'line',
+                                                data: { labels: labels24, datasets: [datasetTemp] },
+                                                options: {
+                                                    animation: false,
+                                                    responsive: true,
+                                                    maintainAspectRatio: false,
+                                                    interaction: { mode: 'nearest', intersect: false },
+                                                    elements: { point: { radius: 0, hoverRadius: 6 }, line: { borderCapStyle: 'round' } },
+                                                    plugins: {
+                                                        legend: { display: false },
+                                                        tooltip: {
+                                                            backgroundColor: '#ffffff', titleColor: '#111827', bodyColor: '#111827', borderColor: '#e9ecef', borderWidth: 1, padding: 8,
+                                                            callbacks: {
+                                                                title(items){ return items[0].label; },
+                                                                label(context){ const val = context.raw; return (val === null || val === undefined) ? 'Sin datos' : `Temperatura: ${val} °C`; }
+                                                            }
+                                                        },
+                                                        layout: { padding: { top: 6 } }
+                                                    },
+                                                    scales: {
+                                                        x: { ticks: { autoSkip: true, maxTicksLimit: 12, maxRotation: 0, font: { size: 11 }, color: '#6b7280', callback(value, index){ return this.chart && this.chart.data && this.chart.data.labels ? this.chart.data.labels[index] : value; } }, grid: { display: false } },
+                                                        y: { beginAtZero: false, suggestedMin: (minTemp !== null ? Math.floor(minTemp - 2) : undefined), suggestedMax: (maxTemp !== null ? Math.ceil(maxTemp + 2) : undefined), grid: { color: 'rgba(15,23,42,0.04)' }, position: 'left', ticks: { color: '#6b7280', font: { size: 11 } } }
+                                                    }
+                                                }
+                                            });
+                                            try{ if(canvasTemp && canvasTemp.id) chartInstances[canvasTemp.id] = createdChartT; }
+                                            catch(e){ /* ignore */ }
+                                        }
+
+                                        if(canvasHum){
+                                            const ctxH = canvasHum.getContext('2d');
+                                            const heightH = canvasHum.height || canvasHum.clientHeight || 220;
+                                            const gradientH = ctxH.createLinearGradient(0,0,0,heightH);
+                                            gradientH.addColorStop(0,'rgba(32,201,151,0.18)'); gradientH.addColorStop(0.6,'rgba(32,201,151,0.08)'); gradientH.addColorStop(1,'rgba(32,201,151,0.02)');
+                                            const datasetHumOnly = {
+                                                label: 'Humedad promedio por hora (%)',
+                                                data: hourlyHum,
+                                                borderColor: '#20c997',
+                                                backgroundColor: gradientH,
+                                                tension: 0.25,
+                                                fill: true,
+                                                pointRadius: 0,
+                                                pointBackgroundColor: '#20c997',
+                                                pointBorderColor: '#fff',
+                                                pointHoverRadius: 5,
+                                                spanGaps: false,
+                                                borderWidth: 2,
+                                                yAxisID: 'y1'
+                                            };
+
+                                            const createdChartH = new Chart(ctxH, {
+                                                type: 'line',
+                                                data: { labels: labels24, datasets: [datasetHumOnly] },
+                                                options: {
+                                                    animation: false,
+                                                    responsive: true,
+                                                    maintainAspectRatio: false,
+                                                    interaction: { mode: 'nearest', intersect: false },
+                                                    elements: { point: { radius: 0, hoverRadius: 5 }, line: { borderCapStyle: 'round' } },
+                                                    plugins: { legend: { display: false }, tooltip: { backgroundColor: '#ffffff', titleColor: '#111827', bodyColor: '#111827', borderColor: '#e9ecef', borderWidth: 1, padding: 8, callbacks: { title(items){ return items[0].label; }, label(context){ const val = context.raw; return (val === null || val === undefined) ? 'Sin datos' : `Humedad: ${val} %`; } } }, layout: { padding: { top: 6 } } },
+                                                    scales: {
+                                                        x: { ticks: { autoSkip: true, maxTicksLimit: 12, maxRotation: 0, font: { size: 11 }, color: '#6b7280', callback(value, index){ return this.chart && this.chart.data && this.chart.data.labels ? this.chart.data.labels[index] : value; } }, grid: { display: false } },
+                                                        y1: { beginAtZero: true, suggestedMin: (minHum !== null ? Math.max(0, Math.floor(minHum - 5)) : undefined), suggestedMax: (maxHum !== null ? Math.min(100, Math.ceil(maxHum + 5)) : undefined), grid: { display: false }, position: 'left', ticks: { callback(v){ return v + ' %'; }, color: '#6b7280', font: { size: 11 } } }
+                                                    }
+                                                }
+                                            });
+                                            try{ if(canvasHum && canvasHum.id) chartInstances[canvasHum.id] = createdChartH; }
+                                            catch(e){ /* ignore */ }
+                                        }
+                                    }catch(e){ console.error('Error creando charts (partial)', e); }
+                                    });
+
+                                    // Force initial resize/redraw now and shortly after to handle layout/docking changes
+                                    try{ handleResize(); setTimeout(handleResize, 200); }catch(e){ /* ignore */ }
+                }
+
+                // initialize: attach menu handlers then restore last view from localStorage
+                setupMenu();
+                restoreState();
+            })();
+        </script>
+        <script src="https://cdn.jsdelivr.net/npm/bootstrap@5.3.2/dist/js/bootstrap.bundle.min.js"></script>
+    </body>
+</html>

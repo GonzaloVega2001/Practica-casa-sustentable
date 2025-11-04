@@ -11,7 +11,7 @@
     </head>
 
     <body >
-        <!-- Cabecera con logos alineados extremos y título debajo -->
+            <!-- Cabecera con logos alineados extremos y título debajo -->
         <div class="container">
                 <div class="row align-items-center mb-2">
                     <div class="col-6 d-flex justify-content-start">
@@ -40,7 +40,7 @@
                                     </small>
                                 </div>
                             </div>
-                        </footer>
+        </footer>
         
         <script type="text/javascript">
             // sensores_json debe ser una cadena JSON desde Django (ver vista)
@@ -130,14 +130,14 @@
 
                 // Estadísticas simples sobre los valores mostrados (temperatura)
                 const temps = hourlyAvg.filter(v => v !== null);
-                const minTemp = temps.length ? Math.min(...temps) : 0;
-                const maxTemp = temps.length ? Math.max(...temps) : 0;
+                const minTemp = temps.length ? Math.min(...temps) : null;
+                const maxTemp = temps.length ? Math.max(...temps) : null;
                 const overallAvg = temps.length ? +(temps.reduce((a,b)=>a+b,0)/temps.length).toFixed(2) : null;
 
                 // Estadísticas para humedad
                 const hums = hourlyHum.filter(v => v !== null);
-                const minHum = hums.length ? Math.min(...hums) : 0;
-                const maxHum = hums.length ? Math.max(...hums) : 0;
+                const minHum = hums.length ? Math.min(...hums) : null;
+                const maxHum = hums.length ? Math.max(...hums) : null;
                 const overallHumAvg = hums.length ? +(hums.reduce((a,b)=>a+b,0)/hums.length).toFixed(2) : null;
 
                 // Última lectura cruda (para mostrar valor actual)
@@ -146,8 +146,8 @@
 
                 // Crear columna y tarjeta
                 const col = document.createElement('div');
-                // Un sensor por fila: ocupar todo el ancho
-                col.className = 'col-12 mb-3';
+                // Cada sensor ocupa una columna; en pantallas md aparecen 2 columnas por fila
+                col.className = 'col-12 col-md-12 mb-3';
 
                 const card = document.createElement('div');
                 card.className = 'card sensor-card h-100';
@@ -175,24 +175,53 @@
                 const humText = (currentHum !== null && !isNaN(currentHum)) ? `${currentHum} %` : '--';
                 info.innerHTML = `Temperatura actual: <strong>${lastReading ? lastReading.temperatura : '--'} °C</strong> — Humedad: <strong>${humText}</strong>`;
 
-                const chartWrap = document.createElement('div');
-                chartWrap.className = 'chart-container mb-2';
+                // Crear contenedor responsivo: usar una fila Bootstrap con dos columnas
+                const chartRow = document.createElement('div');
+                chartRow.className = 'chart-row mb-2 chart-container';
 
-                const canvas = document.createElement('canvas');
-                const canvasId = `chart-sensor-${sensorId}-${idx}`;
-                canvas.id = canvasId;
-                canvas.style.width = '100%';
-                // altura fija para que cada tarjeta tenga una gráfica consistente
-                canvas.style.height = '260px';
+                // Crear inner row que contendrá las dos columnas de los charts
+                const innerRow = document.createElement('div');
+                innerRow.className = 'row g-2 align-items-start';
 
-                chartWrap.appendChild(canvas);
+                // Crear dos canvas: uno para temperatura y otro para humedad
+                const canvasTemp = document.createElement('canvas');
+                const canvasTempId = `chart-temp-${sensorId}-${idx}`;
+                canvasTemp.id = canvasTempId;
+                canvasTemp.classList.add('chart-temp-canvas', 'w-100');
+
+                const canvasHum = document.createElement('canvas');
+                const canvasHumId = `chart-hum-${sensorId}-${idx}`;
+                canvasHum.id = canvasHumId;
+                canvasHum.classList.add('chart-hum-canvas', 'w-100');
+
+                // Columnas Bootstrap para que cada canvas ocupe la mitad del ancho en sm+
+                const colLeft = document.createElement('div');
+                colLeft.className = 'col-12 col-sm-6';
+                colLeft.appendChild(canvasTemp);
+
+                const colRight = document.createElement('div');
+                colRight.className = 'col-12 col-sm-6';
+                colRight.appendChild(canvasHum);
+
+                // Añadir en orden: info, leyenda combinada, fila de dos columnas
                 cardBody.appendChild(info);
-                cardBody.appendChild(chartWrap);
+                const legendDiv = document.createElement('div');
+                legendDiv.className = 'combined-legend mb-2 d-flex justify-content-center gap-3';
+                legendDiv.innerHTML = `<div class="legend-item"><span class="legend-dot" style="background:#0d6efd"></span> Temperatura</div><div class="legend-item"><span class="legend-dot" style="background:#20c997"></span> Humedad</div>`;
+                cardBody.appendChild(legendDiv);
+                innerRow.appendChild(colLeft);
+                innerRow.appendChild(colRight);
+                chartRow.appendChild(innerRow);
+                cardBody.appendChild(chartRow);
 
                 const footer = document.createElement('div');
                 footer.className = 'card-footer d-flex justify-content-between align-items-center py-2 flex-wrap';
-                // Mostrar min/max temperatura y min/max humedad
-                footer.innerHTML = `<div class="footer-note">Min: <strong>${minTemp}</strong> °C — Max: <strong>${maxTemp}</strong> °C</div><div class="footer-note">Min H: <strong>${minHum}</strong>% — Max H: <strong>${maxHum}</strong>%</div>`;
+                // Mostrar min/max temperatura y min/max humedad (usar -- si no hay datos)
+                const minTempText = (minTemp !== null) ? minTemp : '--';
+                const maxTempText = (maxTemp !== null) ? maxTemp : '--';
+                const minHumText = (minHum !== null) ? minHum : '--';
+                const maxHumText = (maxHum !== null) ? maxHum : '--';
+                footer.innerHTML = `<div class="footer-note">Min: <strong>${minTempText}</strong> °C — Max: <strong>${maxTempText}</strong> °C</div><div class="footer-note">Min H: <strong>${minHumText}</strong>% — Max H: <strong>${maxHumText}</strong>%</div>`;
                 if (overallAvg !== null) {
                     const avgEl = document.createElement('div');
                     avgEl.className = 'ms-2';
@@ -222,104 +251,89 @@
                     cardsRow.appendChild(sep);
                 }
 
-                // Crear grafico con gradiente para la serie promedio por hora
-                const ctx = canvas.getContext('2d');
-                const gradient = ctx.createLinearGradient(0, 0, 0, canvas.height || 260);
-                gradient.addColorStop(0, 'rgba(13,110,253,0.22)');
-                gradient.addColorStop(0.6, 'rgba(13,110,253,0.08)');
-                gradient.addColorStop(1, 'rgba(13,110,253,0.02)');
+                // TEMPERATURA: crear gráfico separado
+                const ctxT = canvasTemp.getContext('2d');
+                // usar clientHeight si canvas.height no está inicializado
+                const heightT = canvasTemp.height || canvasTemp.clientHeight || 180;
+                const gradientT = ctxT.createLinearGradient(0, 0, 0, heightT);
+                gradientT.addColorStop(0, 'rgba(13,110,253,0.22)');
+                gradientT.addColorStop(0.6, 'rgba(13,110,253,0.08)');
+                gradientT.addColorStop(1, 'rgba(13,110,253,0.02)');
 
-                const datasetMain = {
+                const datasetTemp = {
                     label: 'Temperatura promedio por hora (°C)',
                     data: hourlyAvg,
                     borderColor: '#0d6efd',
-                    backgroundColor: gradient,
+                    backgroundColor: gradientT,
                     tension: 0.35,
                     fill: true,
-                    pointRadius: 4,
+                    pointRadius: 0,
                     pointBackgroundColor: '#fff',
                     pointBorderColor: '#0d6efd',
                     pointHoverRadius: 6,
-                    spanGaps: true,
+                    spanGaps: false,
                     borderWidth: 2,
                     yAxisID: 'y',
                 };
 
-                // dataset de humedad (segunda serie)
-                const datasetHum = {
+                new Chart(ctxT, {
+                    type: 'line',
+                    data: { labels: labels24, datasets: [datasetTemp] },
+                    options: {
+                        animation: false,
+                        responsive: true,
+                        maintainAspectRatio: false,
+                        interaction: { mode: 'nearest', intersect: false },
+                        elements: { point: { radius: 0, hoverRadius: 6 }, line: { borderCapStyle: 'round' } },
+                        plugins: {
+                            legend: { display: false },
+                            tooltip: { backgroundColor: '#ffffff', titleColor: '#111827', bodyColor: '#111827', borderColor: '#e9ecef', borderWidth: 1, padding: 8, callbacks: { title(items){ return items[0].label; }, label(context){ const val = context.raw; return (val === null || val === undefined) ? 'Sin datos' : `Temperatura: ${val} °C`; } } },
+                            layout: { padding: { top: 6 } }
+                        },
+                        scales: {
+                            x: { ticks: { autoSkip: true, maxTicksLimit: 12, maxRotation: 0, font: { size: 11 }, color: '#6b7280', callback(value, index){ return this.chart && this.chart.data && this.chart.data.labels ? this.chart.data.labels[index] : value; } }, grid: { display: false } },
+                            y: { beginAtZero: false, suggestedMin: (minTemp !== null ? Math.floor(minTemp - 2) : undefined), suggestedMax: (maxTemp !== null ? Math.ceil(maxTemp + 2) : undefined), grid: { color: 'rgba(15,23,42,0.04)' }, position: 'left', ticks: { color: '#6b7280', font: { size: 11 } } }
+                        }
+                    }
+                });
+
+                // HUMEDAD: gráfico separado
+                const ctxH = canvasHum.getContext('2d');
+                const heightH = canvasHum.height || canvasHum.clientHeight || 140;
+                const gradientH = ctxH.createLinearGradient(0, 0, 0, heightH);
+                gradientH.addColorStop(0, 'rgba(32,201,151,0.18)');
+                gradientH.addColorStop(0.6, 'rgba(32,201,151,0.08)');
+                gradientH.addColorStop(1, 'rgba(32,201,151,0.02)');
+
+                const datasetHumOnly = {
                     label: 'Humedad promedio por hora (%)',
                     data: hourlyHum,
                     borderColor: '#20c997',
-                    backgroundColor: 'rgba(32,201,151,0.08)',
+                    backgroundColor: gradientH,
                     tension: 0.25,
-                    fill: false,
-                    pointRadius: 3,
+                    fill: true,
+                    pointRadius: 0,
                     pointBackgroundColor: '#20c997',
                     pointBorderColor: '#fff',
                     pointHoverRadius: 5,
-                    spanGaps: true,
+                    spanGaps: false,
                     borderWidth: 2,
                     yAxisID: 'y1',
                 };
 
-                const datasets = [datasetMain, datasetHum];
-
-                new Chart(ctx, {
+                new Chart(ctxH, {
                     type: 'line',
-                    data: {
-                        labels: labels24,
-                        datasets: datasets
-                    },
+                    data: { labels: labels24, datasets: [datasetHumOnly] },
                     options: {
+                        animation: false,
                         responsive: true,
                         maintainAspectRatio: false,
                         interaction: { mode: 'nearest', intersect: false },
-                        plugins: {
-                            // Ocultar leyenda para eliminar los botones interactivos
-                            legend: { display: false },
-                            tooltip: {
-                                callbacks: {
-                                    title(items) { return items[0].label; },
-                                    label(context) {
-                                        const val = context.raw;
-                                        const label = context.dataset && context.dataset.label ? context.dataset.label.toLowerCase() : '';
-                                        if (val === null || val === undefined) return 'Sin datos';
-                                        if (label.includes('humedad')) return `Humedad: ${val} %`;
-                                        return `Temperatura: ${val} °C`;
-                                    }
-                                }
-                            }
-                        },
+                        elements: { point: { radius: 0, hoverRadius: 5 }, line: { borderCapStyle: 'round' } },
+                        plugins: { legend: { display: false }, tooltip: { backgroundColor: '#ffffff', titleColor: '#111827', bodyColor: '#111827', borderColor: '#e9ecef', borderWidth: 1, padding: 8, callbacks: { title(items){ return items[0].label; }, label(context){ const val = context.raw; return (val === null || val === undefined) ? 'Sin datos' : `Humedad: ${val} %`; } } }, layout: { padding: { top: 6 } } },
                         scales: {
-                            x: {
-                                // Mostrar las 24 horas (sin auto-skip) para que aparezca una etiqueta por hora
-                                ticks: {
-                                    autoSkip: false,
-                                    maxRotation: 0,
-                                    // usar tamaño de fuente más pequeño para evitar solapamientos
-                                    font: { size: 11 },
-                                    callback(value, index) {
-                                        // `this.chart.data.labels` contiene las etiquetas horarias
-                                        return this.chart && this.chart.data && this.chart.data.labels ? this.chart.data.labels[index] : value;
-                                    }
-                                },
-                                grid: { display: false }
-                            },
-                            y: {
-                                beginAtZero: false,
-                                suggestedMin: Math.floor(minTemp - 2),
-                                suggestedMax: Math.ceil(maxTemp + 2),
-                                grid: { color: 'rgba(15,23,42,0.04)' },
-                                position: 'left',
-                            },
-                            y1: {
-                                beginAtZero: true,
-                                suggestedMin: Math.max(0, Math.floor(minHum - 5)),
-                                suggestedMax: Math.min(100, Math.ceil(maxHum + 5)),
-                                grid: { display: false },
-                                position: 'right',
-                                ticks: { callback(v){ return v + ' %'; } }
-                            }
+                            x: { ticks: { autoSkip: true, maxTicksLimit: 12, maxRotation: 0, font: { size: 11 }, color: '#6b7280', callback(value, index){ return this.chart && this.chart.data && this.chart.data.labels ? this.chart.data.labels[index] : value; } }, grid: { display: false } },
+                            y1: { beginAtZero: true, suggestedMin: (minHum !== null ? Math.max(0, Math.floor(minHum - 5)) : undefined), suggestedMax: (maxHum !== null ? Math.min(100, Math.ceil(maxHum + 5)) : undefined), grid: { display: false }, position: 'left', ticks: { callback(v){ return v + ' %'; }, color: '#6b7280', font: { size: 11 } } }
                         }
                     }
                 });
@@ -327,5 +341,38 @@
         </script>
 
         <script src="https://cdn.jsdelivr.net/npm/bootstrap@5.3.2/dist/js/bootstrap.bundle.min.js"></script>
+            <style>
+                body {
+                    background-color: #faf8c7; /* fallback amarillo claro */
+                    background-image: url("{% static 'img/background.jpg' %}");
+                    background-repeat: no-repeat;
+                    background-position: center center;
+                    background-size: cover;
+                    /* evitar repaints costosos en algunos navegadores */
+                    background-attachment: scroll;
+                }
+
+                .chart-container{ padding: .6rem; border-radius: .5rem; background: rgba(255,255,255,0.72); }
+                /* clases para controlar altura sin usar estilos inline en canvas */
+                /* alturas ajustadas para apariencia tipo foto */
+                /* alturas responsivas para que se ajusten dentro de la columna del sensor */
+                /* equal heights for both charts */
+                .chart-temp-canvas, .chart-hum-canvas { height: 200px !important; display:block; }
+                @media (min-width: 768px) {
+                    .chart-temp-canvas, .chart-hum-canvas { height: 240px !important; }
+                }
+                @media (min-width: 1200px) {
+                    .chart-temp-canvas, .chart-hum-canvas { height: 260px !important; }
+                }
+                .chart-container{ padding: .4rem; border-radius: .5rem; background: rgba(255,255,255,0.85); }
+                /* asegurar que ambos charts llenen la columna y tengan la misma altura */
+                .chart-row .row > [class*="col-"] { display:flex; flex-direction:column; }
+                .chart-row canvas { width:100% !important; height:100% !important; display:block; }
+                .chart-row .chart-temp-canvas, .chart-row .chart-hum-canvas { min-height: 180px; }
+                /* leyenda combinada centrada */
+                .combined-legend{ font-size:13px; color:#374151; }
+                .legend-dot{ width:12px; height:12px; display:inline-block; border-radius:50%; margin-right:6px; vertical-align:middle; box-shadow:0 0 0 3px rgba(0,0,0,0.03) inset; }
+                .legend-item{ display:inline-flex; align-items:center; gap:6px; padding:4px 8px; background: rgba(255,255,255,0.0); border-radius:6px; }
+            </style>
     </body>
 </html>
