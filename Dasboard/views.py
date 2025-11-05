@@ -2,7 +2,8 @@ from django.shortcuts import render
 from .models import EstadoSensor
 import json
 from django.core.serializers.json import DjangoJSONEncoder # Importar el encoder
-from django.http import JsonResponse
+from django.http import JsonResponse, HttpResponse
+from django.template.loader import render_to_string
 import traceback
 
 def dashboard(request):
@@ -107,3 +108,29 @@ def dashboard_data(request):
         print(tb)
         print('--- FIN EXCEPCIÓN ---\n')
         return JsonResponse({'error': 'Error al obtener datos de sensores. Revisa la consola del servidor.'}, status=500)
+    
+
+def dashboard_general(request):
+    # Obtener lecturas y pasarlas al template como JSON para que el cliente las procese
+    try:
+        sensores_qs = EstadoSensor.objects.all().values(
+            'id_lectura',
+            'id_termocupla',
+            'fecha_hora',
+            'temperatura',
+            'tipo_pared',
+            'humedad',
+        )
+        sensores_list = list(sensores_qs)
+        sensores_json_string = json.dumps(sensores_list, cls=DjangoJSONEncoder)
+    except Exception:
+        sensores_json_string = '[]'
+    # If requested as a partial, return only the inner fragment for insertion
+    if request.GET.get('partial'):
+        try:
+            html = render_to_string('_db_general_partial.html', {'sensores_json': sensores_json_string}, request=request)
+            return HttpResponse(html)
+        except Exception:
+            return HttpResponse(status=500, content='Error rendering partial')
+
+    return render(request, 'db_general.html', {'sensores_json': sensores_json_string})

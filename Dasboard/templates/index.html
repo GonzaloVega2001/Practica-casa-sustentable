@@ -22,13 +22,8 @@
         <div class="sidebar-menu">
           <ul class="nav flex-column">
             <li class="nav-item">
-              <a href="#" class="nav-link text-white active" data-view="dashboard">
+              <a href="#" class="nav-link text-white active" data-view="general">
                 <i class="bi bi-speedometer2 me-2"></i> Dashboard General
-              </a>
-            </li>
-            <li class="nav-item">
-              <a href="" class="nav-link text-white" data-view="dashboard">
-                <i class="bi bi-speedometer2 me-2"></i> Exportar CSV / Excel
               </a>
             </li>
 
@@ -103,12 +98,31 @@
                 background-size: cover;
                 background-position: center;
                 background-repeat: no-repeat;
+                overflow: auto; /* allow page scrolling */
             }
+
+            /* Hide native scrollbars visually while preserving scrolling (Option A)
+               - Firefox: scrollbar-width
+               - IE/Edge: -ms-overflow-style
+               - Webkit: ::-webkit-scrollbar */
+            html, body {
+                scrollbar-width: none; /* Firefox */
+                -ms-overflow-style: none; /* IE 10+ */
+            }
+      html::-webkit-scrollbar, body::-webkit-scrollbar { width: 0; height: 0; background: transparent; }
+
+      /* Also hide internal panel scrollbar visually while keeping scroll behavior */
+      .panel-body {
+        scrollbar-width: none; /* Firefox */
+        -ms-overflow-style: none; /* IE 10+ */
+      }
+      .panel-body::-webkit-scrollbar { width: 0; height: 0; background: transparent; }
+            
             .sidebar { width:260px; min-height:100vh; position:fixed; left:0; top:0; z-index:100; }
             .logo-sidebar { max-width:140px; height:auto; display:block; margin:0 auto; }
             .sidebar-menu { padding:1rem; }
             .nav-link { padding:0.5rem 1rem; border-radius:0.375rem; margin-bottom:0.25rem; }
-            .nav-link:hover { background-color: rgba(255,255,255,0.1); }
+            .nav-link:hover { background-color: rgba(73, 72, 72, 0.1); }
             .nav-link.active { background-color: rgba(255,255,255,0.2); }
             .main-content { margin-left:260px; min-height:100vh; display:flex; flex-direction:column; }
 
@@ -139,8 +153,8 @@
                 /* limitar altura para permitir scroll interno dentro del panel */
                 max-height: calc(100vh - 200px);
                 overflow-y: auto;
-                -webkit-overflow-scrolling: touch;
-                padding-right: 8px; /* espacio para el scrollbar */
+                -webkit-overflow-scrolling: touch; /* Scroll suave en iOS */
+                padding-right: 2px; /* espacio para el scrollbar */
             }
 
             /* Asegurar que el contenedor donde se insertan las tarjetas use overflow en X oculto */
@@ -194,10 +208,15 @@
                             menuLinks.forEach(l=>l.classList.remove('active'));
                             this.classList.add('active');
                             const view = this.dataset.view; const sensor = this.dataset.sensor;
-                            if(view==='dashboard'){
-                                saveState({view:'dashboard', sensor:null});
-                                setLayoutForView('dashboard');
-                                loadSensors();
+                            if(view==='general'){
+                              // Show the tabular general dashboard partial
+                              saveState({view:'general', sensor:null});
+                              setLayoutForView('dashboard');
+                              loadGeneralPartial();
+                            } else if(view==='dashboard'){
+                              saveState({view:'dashboard', sensor:null});
+                              setLayoutForView('dashboard');
+                              loadSensors();
                             } else if(view==='sensor') {
                                 // sensor may be 'all' or a specific id
                                 saveState({view:'sensor', sensor: sensor});
@@ -207,6 +226,39 @@
                         });
                     });
                 }
+
+        function loadGeneralPartial(){
+          destroyAllCharts();
+          cardsRow.innerHTML = '';
+          const partialUrl = '/general/?partial=1&_=' + Date.now();
+          fetch(partialUrl).then(r=>{ if(!r.ok) return r.text().then(t=>{throw new Error('Error general partial: '+r.status+' - '+t)}); return r.text(); }).then(html=>{
+            // Parse the returned HTML and insert nodes
+            const parser = new DOMParser();
+            const doc = parser.parseFromString(html, 'text/html');
+            cardsRow.innerHTML = '';
+            // Import all top-level children (this will include nested <script> tags, but they won't execute automatically)
+            Array.from(doc.body.children).forEach(node=>{
+                cardsRow.appendChild(document.importNode(node, true));
+            });
+
+            // Find any script tags within the inserted fragment and execute them manually.
+            // This ensures inline scripts inside the partial run when inserted via fetch.
+            const scripts = cardsRow.querySelectorAll('script');
+            scripts.forEach(oldScript => {
+                try{
+                    const newScript = document.createElement('script');
+                    // copy attributes
+                    for(const attr of oldScript.attributes || []){ newScript.setAttribute(attr.name, attr.value); }
+                    // copy inline content
+                    newScript.text = oldScript.textContent;
+                    // replace the old script with the new one so it executes
+                    oldScript.parentNode.replaceChild(newScript, oldScript);
+                }catch(e){ console.warn('Error ejecutando script del partial:', e); }
+            });
+      // Give the inserted scripts a moment to run, then request a redraw of general charts (if helper exists)
+      setTimeout(()=>{ try{ if(window.__redrawGeneralCharts) window.__redrawGeneralCharts(); }catch(e){ console.warn('Error al forzar redraw general charts', e); } }, 150);
+          }).catch(err=>{ console.error(err); cardsRow.innerHTML = '<div class="col-12"><div class="alert alert-danger">No se pudo cargar el dashboard general. Revisa la consola del servidor.</div></div>'; });
+        }
 
                 function saveState(state){
                     try{ localStorage.setItem('dashboardState', JSON.stringify(state)); }catch(e){ console.warn('No se pudo guardar estado en localStorage', e); }
@@ -265,6 +317,10 @@
                             setActiveMenu('dashboard', null);
                             setLayoutForView('dashboard');
                             loadSensors();
+            } else if(state.view==='general'){
+              setActiveMenu('general', null);
+              setLayoutForView('dashboard');
+              loadGeneralPartial();
                         } else if(state.view==='sensor'){
                             // if sensor is null or 'all', load all
                             if(!state.sensor || state.sensor==='all'){

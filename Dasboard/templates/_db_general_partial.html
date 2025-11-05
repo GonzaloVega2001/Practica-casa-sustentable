@@ -1,0 +1,489 @@
+<div class="db-general-partial">
+    <style>
+        /* Prevent canvases in this partial from flex-growing and causing infinite height
+           Override global canvas flex rules from index.css and give a stable height */
+        .db-general-partial .card canvas {
+            display: block !important;
+            width: 100% !important;
+            flex: 0 0 auto !important;
+            height: 260px !important;
+            max-height: 360px !important;
+        }
+        /* Ensure collapse rows don't stretch the layout */
+        .db-general-partial .collapse-row { display: table-row; }
+        .db-general-partial .readings { white-space: pre-wrap; }
+    </style>
+    <div class="container-fluid">
+
+        <div class="row g-3 mb-4">
+            <div class="col-md-3">
+                <div class="card card-small p-3">
+                    <div class="text-muted small">Termocuplas</div>
+                    <div class="h3" id="totalSensors"></div>
+                    <div class="small text-muted" id="globalUnitTemp">Activos</div>
+                </div>
+            </div>
+            <div class="col-md-3">
+                <div class="card card-small p-3">
+                    <div class="text-muted small">Promedio Temperatura (General)</div>
+                    <div class="h3" id="globalAverageTemp">--</div>
+                    <div class="small text-muted" id="globalUnitTemp">°C</div>
+                </div>
+            </div>
+            <div class="col-md-3">
+                <div class="card card-small p-3">
+                    <div class="text-muted small">Promedio Humedad (General)</div>
+                    <div class="h3" id="globalAverageHum">--</div>
+                    <div class="small text-muted" id="globalUnitHum">%</div>
+                </div>
+            </div>
+            <div class="col-md-3">
+                <div class="d-flex align-items-center justify-content-center h-100 card card-small">
+                    <button class="btn btn-primary btn-sm" data-bs-toggle="modal" data-bs-target="#exportModal">
+                        <i class="bi bi-download me-2"></i> Exportar CSV / Excel
+                    </button>
+                </div>
+            </div>
+        </div>
+
+        <div class="row g-3 mb-4">
+            <div class="col-md-6">
+                <div class="card p-3">
+                    <div class="small text-muted mb-2">Promedios de Temperatura por Sensor (línea)</div>
+                    <canvas id="avgTempChart" height="80"></canvas>
+                </div>
+            </div>
+            <div class="col-md-6">
+                <div class="card p-3">
+                    <div class="small text-muted mb-2">Promedios de Humedad por Sensor (línea)</div>
+                    <canvas id="avgHumChart" height="80"></canvas>
+                </div>
+            </div>
+        </div>
+
+        <div class="card mb-4">
+            <div class="card-body">
+                <h5 class="card-title">Sensores (detalles)</h5>
+                <div class="table-responsive">
+                    <table class="table table-hover align-middle">
+                        <thead>
+                            <tr>
+                                <th>Sensor</th>
+                                <th>Unidad</th>
+                                <th>Promedio</th>
+                                <th>Última</th>
+                                <th>Min</th>
+                                <th>Max</th>
+                                <th>Lecturas</th>
+                                <th></th>
+                            </tr>
+                        </thead>
+                        <tbody id="db-general-body">
+                            <tr class="text-muted"><td colspan="8">Cargando datos...</td></tr>
+                        </tbody>
+                    </table>
+                </div>
+            </div>
+        </div>
+
+        
+    </div>
+
+    <div class="modal fade" id="exportModal" tabindex="-1" aria-labelledby="exportModalLabel" aria-hidden="true">
+        <div class="modal-dialog">
+            <div class="modal-content">
+                <div class="modal-header">
+                    <h5 class="modal-title" id="exportModalLabel">Seleccionar formato de exportación</h5>
+                    <button type="button" class="btn-close" data-bs-dismiss="modal" aria-label="Close"></button>
+                </div>
+                <div class="modal-body">
+                    <p>Seleccione el formato en el que desea exportar **todos** los datos:</p>
+                    <div class="d-flex justify-content-around">
+                        <button id="exportCsvBtn" class="btn btn-primary">Exportar como CSV</button>
+                        <button id="exportExcelBtn" class="btn btn-success">Exportar como Excel</button>
+                    </div>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <div class="modal fade" id="sensorExportModal" tabindex="-1" aria-labelledby="sensorExportModalLabel" aria-hidden="true">
+        <div class="modal-dialog">
+            <div class="modal-content">
+                <div class="modal-header">
+                    <h5 class="modal-title" id="sensorExportModalLabel">Exportar Sensor</h5>
+                    <button type="button" class="btn-close" data-bs-dismiss="modal" aria-label="Close"></button>
+                </div>
+                <div class="modal-body">
+                    <p>Exportar datos para <strong id="sensorExportName">Sensor X</strong> como:</p>
+                    <div class="d-flex justify-content-around">
+                        <button id="sensorExportCsvBtn" class="btn btn-primary">Exportar como CSV</button>
+                        <button id="sensorExportExcelBtn" class="btn btn-success">Exportar como Excel</button>
+                    </div>
+                    <input type="hidden" id="sensorExportIndexInput" value="">
+                </div>
+            </div>
+        </div>
+    </div>
+    <script>
+        // Same script as in db_general but scoped to the partial root
+        (function(){
+            // chart registry (shared with index page) so we can destroy/resize consistently
+            window.__chartInstances = window.__chartInstances || {};
+            function destroyChartById(id){ try{ const c = window.__chartInstances && window.__chartInstances[id]; if(c && typeof c.destroy === 'function') { c.destroy(); } if(window.__chartInstances) delete window.__chartInstances[id]; }catch(e){} }
+
+            let sensores_raw = [];
+            try {
+                const _raw = '{{ sensores_json|default:"[]"|escapejs }}';
+                sensores_raw = JSON.parse(_raw || '[]');
+            } catch (e) { console.error('Error parsing sensores JSON:', e); sensores_raw = []; }
+
+            const grouped = sensores_raw.reduce((acc, r) => { const key = r.id_termocupla ?? 'unknown'; if(!acc[key]) acc[key]=[]; acc[key].push(r); return acc; }, {});
+            const tbody = document.getElementById('db-general-body'); tbody.innerHTML = '';
+            const sensorKeys = Object.keys(grouped).sort();
+            const totalEl = document.getElementById('totalSensors'); if(totalEl) totalEl.textContent = sensorKeys.length;
+
+            function formatDate(d){ try{ return new Date(d).toLocaleString(); }catch(e){ return d; } }
+
+            const avgValues = [];
+            sensorKeys.forEach((sensorId, idx)=>{
+                const readings = grouped[sensorId].slice().sort((a,b)=>new Date(a.fecha_hora)-new Date(b.fecha_hora));
+                const temps = readings.map(r=>Number(r.temperatura)).filter(x=>!isNaN(x));
+                const avgTemp = temps.length ? (temps.reduce((a,b)=>a+b,0)/temps.length) : null;
+                const last = readings[readings.length-1];
+                avgValues.push({sensor: sensorId, avg: avgTemp||0});
+
+                const row = document.createElement('tr');
+                row.className='sensor-row';
+                row.innerHTML = `
+                    <td>Sensor ${sensorId}</td>
+                    <td>°C</td>
+                    <td class="avgCell">${avgTemp!==null? avgTemp.toFixed(2) : '--'}</td>
+                    <td class="lastCell">${ last ? formatDate(last.fecha_hora) : '--' }</td>
+                    <td class="minCell">${temps.length? Math.min(...temps).toFixed(2) : '--'}</td>
+                    <td class="maxCell">${temps.length? Math.max(...temps).toFixed(2) : '--'}</td>
+                    <td class="countCell">${readings.length}</td>
+                    <td><button class="btn btn-sm btn-outline-secondary toggleBtn" data-bs-toggle="collapse" data-bs-target="#log${idx}">Ver</button></td>
+                `;
+                tbody.appendChild(row);
+
+                const cr = document.createElement('tr'); cr.className='collapse-row'; cr.innerHTML = `
+                    <td colspan="8" class="p-0">
+                        <div id="log${idx}" class="collapse">
+                            <div class="p-3">
+                                <div class="d-flex justify-content-between mb-2">
+                                    <div class="small text-muted">Últimas lecturas</div>
+
+                                    <div>
+                                        <button class="btn btn-sm btn-primary openSensorExportModal" 
+                                                data-bs-toggle="modal" 
+                                                data-bs-target="#sensorExportModal" 
+                                                data-index="${idx}"
+                                                data-sensor-id="${sensorId}">
+                                            <i class="bi bi-download me-2"></i> Exportar CSV / Excel
+                                        </button>
+                                    </div>
+                                    </div>
+                                <pre class="readings" id="readings${idx}"></pre>
+                            </div>
+                        </div>
+                    </td>
+                `; tbody.appendChild(cr);
+                const pre = cr.querySelector('#readings' + idx); if(pre){ pre.textContent = readings.slice(-50).map(r=> `${formatDate(r.fecha_hora)} - ${r.temperatura} ${r.humedad?('/ '+r.humedad):''}`).join('\n'); }
+            });
+
+            // global averages (temperature and humidity)
+            const globalAvgTempEl = document.getElementById('globalAverageTemp');
+            const globalAvgHumEl = document.getElementById('globalAverageHum');
+            const avgTempValues = avgValues.map(v=> ({sensor:v.sensor, avg:v.avg}));
+            // Build humidity averages per sensor as well
+            const avgHumValues = sensorKeys.map(sensorId=>{
+                const rs = grouped[sensorId] || [];
+                const hums = rs.map(r=> Number(r.humedad)).filter(x=>!isNaN(x));
+                const avgH = hums.length ? (hums.reduce((a,b)=>a+b,0)/hums.length) : 0;
+                return { sensor: sensorId, avg: avgH };
+            });
+
+            if(globalAvgTempEl){ const numeric = avgTempValues.map(v=>v.avg).filter(x=>!isNaN(x) && x!==0); const gavg = numeric.length? (numeric.reduce((a,b)=>a+b,0)/numeric.length) : null; globalAvgTempEl.textContent = gavg ? gavg.toFixed(2) : '--'; }
+            if(globalAvgHumEl){ const numericH = avgHumValues.map(v=>v.avg).filter(x=>!isNaN(x) && x!==0); const gavgH = numericH.length? (numericH.reduce((a,b)=>a+b,0)/numericH.length) : null; globalAvgHumEl.textContent = gavgH ? gavgH.toFixed(2) : '--'; }
+
+            // line charts for averages (Temperature and Humidity)
+            try{
+                const labels = avgTempValues.map(v=> 'S' + v.sensor);
+                // Destroy previous instances if any (avoids duplicates and layout jumps)
+                destroyChartById('avgTempChart');
+                destroyChartById('avgHumChart');
+
+                // ensure canvases have an explicit height to avoid layout shift
+                const canvasTempEl = document.getElementById('avgTempChart');
+                const canvasHumEl = document.getElementById('avgHumChart');
+                if(canvasTempEl) canvasTempEl.style.height = canvasTempEl.style.height || '220px';
+                if(canvasHumEl) canvasHumEl.style.height = canvasHumEl.style.height || '220px';
+
+                // Temp chart
+                const ctxT = canvasTempEl && canvasTempEl.getContext ? canvasTempEl.getContext('2d') : null;
+                if(ctxT){
+                    const dataT = avgTempValues.map(v=> (v.avg || v.avg === 0) ? +Number(v.avg).toFixed(2) : null);
+                    const chartT = new Chart(ctxT, {
+                        type: 'line',
+                        data: { labels: labels, datasets: [{ label: 'Promedio T (°C)', data: dataT, borderColor: '#0d6efd', backgroundColor: 'rgba(13,110,253,0.12)', tension: 0.3, fill: true, pointRadius:3 }] },
+                        options: { responsive:true, maintainAspectRatio:false, interaction:{mode:'index', intersect:false}, plugins:{ legend:{display:false} }, scales:{ y:{ beginAtZero:false, title:{display:true,text:'°C'} } } }
+                    });
+                    try{ window.__chartInstances['avgTempChart'] = chartT; }catch(e){}
+                    // force a resize shortly after creation to stabilize rendering
+                    setTimeout(()=>{ try{ chartT.resize(); }catch(e){} }, 120);
+                    setTimeout(()=>{ try{ chartT.resize(); }catch(e){} }, 400);
+                }
+
+                // Humidity chart
+                const ctxH = canvasHumEl && canvasHumEl.getContext ? canvasHumEl.getContext('2d') : null;
+                if(ctxH){
+                    const dataH = avgHumValues.map(v=> (v.avg || v.avg === 0) ? +Number(v.avg).toFixed(2) : null);
+                    const chartH = new Chart(ctxH, {
+                        type: 'line',
+                        data: { labels: labels, datasets: [{ label: 'Promedio H (%)', data: dataH, borderColor: '#20c997', backgroundColor: 'rgba(32,201,151,0.10)', tension: 0.3, fill: true, pointRadius:3 }] },
+                        options: { responsive:true, maintainAspectRatio:false, interaction:{mode:'index', intersect:false}, plugins:{ legend:{display:false} }, scales:{ y:{ beginAtZero:true, title:{display:true,text:'%'} } } }
+                    });
+                    try{ window.__chartInstances['avgHumChart'] = chartH; }catch(e){}
+                    setTimeout(()=>{ try{ chartH.resize(); chartH.update(); }catch(e){} }, 120);
+                    setTimeout(()=>{ try{ chartH.resize(); chartH.update(); }catch(e){} }, 400);
+                }
+            }catch(e){ console.warn('Error creando charts generales:', e); }
+
+            // ResizeObserver: cuando cambie el tamaño del contenedor, forzamos resize/update de los charts
+            try{
+                const root = document.querySelector('.db-general-partial') || document.body;
+                if(window.ResizeObserver){
+                    const ro = new ResizeObserver(entries=>{
+                        try{
+                            ['avgTempChart','avgHumChart'].forEach(id=>{
+                                const c = window.__chartInstances && window.__chartInstances[id];
+                                if(c && typeof c.resize === 'function'){
+                                    try{ c.resize(); c.update(); }catch(e){}
+                                }
+                            });
+                        }catch(e){ /* ignore */ }
+                    });
+                    ro.observe(root);
+                }
+            }catch(e){ /* ignore */ }
+
+            // Public helper to force redraw from outside (index.html calls this after inserting partial)
+            window.__redrawGeneralCharts = function(){
+                try{
+                    ['avgTempChart','avgHumChart'].forEach(id=>{
+                        const c = window.__chartInstances && window.__chartInstances[id];
+                        if(c){ try{ c.resize(); c.update(); }catch(e){} }
+                    });
+                }catch(e){ console.warn('Error forzando redraw charts generales', e); }
+            };
+
+
+            // ==================================================================
+            // INICIO DE LA SECCIÓN MODIFICADA 3 (LÓGICA JAVASCRIPT)
+            // ==================================================================
+
+            // ELIMINAMOS la lógica antigua del botón de sensor
+            document.addEventListener('click', function(e){ 
+                // La lógica de 'exportSensorBtn' fue eliminada de aquí
+                
+                // Esta lógica parece ser para un botón que no existe, pero la dejamos por si acaso.
+                if(e.target && e.target.id === 'exportAllBtn'){ 
+                    const rows = sensores_raw.map(r=> `${r.fecha_hora},${r.id_termocupla},${r.temperatura},${r.humedad || ''}`); 
+                    const csv = ['timestamp,sensor,temperatura,humedad'].concat(rows).join('\n'); 
+                    const blob = new Blob([csv], {type:'text/csv'}); 
+                    const url = URL.createObjectURL(blob); const a=document.createElement('a'); a.href=url; a.download=`all_sensors.csv`; document.body.appendChild(a); a.click(); a.remove(); URL.revokeObjectURL(url); 
+                } 
+            });
+
+
+            // --- Lógica para el modal GLOBAL ---
+
+            // Mostrar el modal (esta lógica parece redundante si usas data-bs-toggle, pero la mantenemos)
+            const exportAllBtn = document.getElementById('exportAllBtn'); // Este ID no parece estar en tu HTML
+            const exportModal = new bootstrap.Modal(document.getElementById('exportModal'));
+            if (exportAllBtn) {
+                exportAllBtn.addEventListener('click', (e) => {
+                    e.preventDefault();
+                    exportModal.show();
+                });
+            }
+
+            // Lógica para exportar como CSV (GLOBAL)
+            const exportCsvBtn = document.getElementById('exportCsvBtn');
+            if (exportCsvBtn) {
+                exportCsvBtn.addEventListener('click', () => {
+                    const rows = sensores_raw.map(r => `${r.fecha_hora},${r.id_termocupla},${r.temperatura},${r.humedad || ''}`);
+                    const csv = ['timestamp,sensor,temperatura,humedad'].concat(rows).join('\n');
+                    const blob = new Blob([csv], { type: 'text/csv' });
+                    const url = URL.createObjectURL(blob);
+                    const a = document.createElement('a');
+                    a.href = url;
+                    a.download = `all_sensors.csv`;
+                    document.body.appendChild(a);
+                    a.click();
+                    a.remove();
+                    URL.revokeObjectURL(url);
+                    exportModal.hide();
+                });
+            }
+
+            // Lógica para exportar como Excel (GLOBAL)
+            const exportExcelBtn = document.getElementById('exportExcelBtn');
+            if (exportExcelBtn) {
+
+                // Función auxiliar para cargar script (definida solo una vez)
+                function loadScript(src, callback) {
+                    if (document.querySelector(`script[src="${src}"]`)) {
+                        if (callback) callback();
+                        return;
+                    }
+                    const script = document.createElement('script');
+                    script.src = src;
+                    script.onload = () => { if (callback) callback(); };
+                    script.onerror = () => { console.error(`Error cargando el script: ${src}`); };
+                    document.head.appendChild(script);
+                }
+
+                // Función de exportación GLOBAL
+                function performExcelExport() {
+                    try {
+                        const rows = sensores_raw.map(r => [r.fecha_hora, r.id_termocupla, r.temperatura, r.humedad || '']);
+                        const sheetData = [['timestamp', 'sensor', 'temperatura', 'humedad'], ...rows];
+                        
+                        const worksheet = XLSX.utils.aoa_to_sheet(sheetData);
+                        const workbook = XLSX.utils.book_new();
+                        XLSX.utils.book_append_sheet(workbook, worksheet, 'Sensores');
+                        XLSX.writeFile(workbook, 'all_sensors.xlsx');
+                        
+                        const currentModal = bootstrap.Modal.getInstance(document.getElementById('exportModal'));
+                        if (currentModal) currentModal.hide();
+
+                    } catch (e) {
+                        console.error("Error durante la exportación a Excel:", e);
+                        alert("Error al exportar. Intente de nuevo.");
+                    } finally {
+                        exportExcelBtn.disabled = false;
+                        exportExcelBtn.textContent = 'Exportar como Excel';
+                    }
+                }
+
+                // Evento click (GLOBAL)
+                exportExcelBtn.addEventListener('click', () => {
+                    const libSrc = "https://cdnjs.cloudflare.com/ajax/libs/xlsx/0.18.5/xlsx.full.min.js";
+                    
+                    exportExcelBtn.disabled = true;
+                    exportExcelBtn.textContent = 'Cargando...';
+
+                    if (typeof XLSX !== 'undefined') {
+                        performExcelExport();
+                    } else {
+                        loadScript(libSrc, performExcelExport);
+                    }
+                });
+            }
+
+            // --- NUEVO: Lógica para el modal de CADA SENSOR ---
+
+            const sensorExportModalEl = document.getElementById('sensorExportModal');
+            const sensorExportModalInstance = new bootstrap.Modal(sensorExportModalEl);
+            const sensorExportIndexInput = document.getElementById('sensorExportIndexInput');
+            
+            // 1. Evento para cuando se muestra el modal del sensor
+            if (sensorExportModalEl) {
+                sensorExportModalEl.addEventListener('show.bs.modal', function (event) {
+                    const button = event.relatedTarget; // Botón que disparó el modal
+                    const idx = button.getAttribute('data-index');
+                    const sensorId = button.getAttribute('data-sensor-id');
+                    
+                    // Actualizar el título y el input oculto
+                    const modalTitle = sensorExportModalEl.querySelector('#sensorExportModalLabel');
+                    const modalSensorName = sensorExportModalEl.querySelector('#sensorExportName');
+                    
+                    modalTitle.textContent = `Exportar Sensor ${sensorId}`;
+                    modalSensorName.textContent = `Sensor ${sensorId}`;
+                    sensorExportIndexInput.value = idx; // Guardamos el índice
+                });
+            }
+
+            // 2. Lógica para el botón CSV del sensor
+            const sensorCsvBtn = document.getElementById('sensorExportCsvBtn');
+            if (sensorCsvBtn) {
+                sensorCsvBtn.addEventListener('click', () => {
+                    const idx = sensorExportIndexInput.value;
+                    const key = sensorKeys[idx];
+                    if (!key) return;
+
+                    const rows = (grouped[key]||[]).map(r=> [r.fecha_hora, r.temperatura, r.humedad||''].join(','));
+                    const csv = ['timestamp,temperatura,humedad'].concat(rows).join('\n');
+                    const blob = new Blob([csv], {type:'text/csv'});
+                    const url = URL.createObjectURL(blob);
+                    const a=document.createElement('a');
+                    a.href=url;
+                    a.download=`sensor_${key}.csv`;
+                    document.body.appendChild(a);
+                    a.click();
+                    a.remove();
+                    URL.revokeObjectURL(url);
+
+                    sensorExportModalInstance.hide();
+                });
+            }
+
+            // 3. Lógica para el botón Excel del sensor
+            const sensorExcelBtn = document.getElementById('sensorExportExcelBtn');
+            if (sensorExcelBtn) {
+                
+                // Función de exportación para UN SENSOR
+                function performSensorExcelExport() {
+                    const idx = sensorExportIndexInput.value;
+                    const key = sensorKeys[idx];
+                    if (!key) {
+                        sensorExcelBtn.disabled = false;
+                        sensorExcelBtn.textContent = 'Exportar como Excel';
+                        return;
+                    }
+
+                    try {
+                        const readings = grouped[key] || [];
+                        const rows = readings.map(r => [r.fecha_hora, r.temperatura, r.humedad || '']);
+                        const sheetData = [['timestamp', 'temperatura', 'humedad'], ...rows];
+                        
+                        const worksheet = XLSX.utils.aoa_to_sheet(sheetData);
+                        const workbook = XLSX.utils.book_new();
+                        XLSX.utils.book_append_sheet(workbook, worksheet, `Sensor ${key}`);
+                        XLSX.writeFile(workbook, `sensor_${key}.xlsx`);
+                        
+                        sensorExportModalInstance.hide();
+                    } catch (e) {
+                        console.error("Error exportando sensor a Excel:", e);
+                    } finally {
+                        sensorExcelBtn.disabled = false;
+                        sensorExcelBtn.textContent = 'Exportar como Excel';
+                    }
+                }
+
+                // Evento click (POR SENSOR)
+                sensorExcelBtn.addEventListener('click', () => {
+                    const libSrc = "https://cdnjs.cloudflare.com/ajax/libs/xlsx/0.18.5/xlsx.full.min.js";
+                    
+                    sensorExcelBtn.disabled = true;
+                    sensorExcelBtn.textContent = 'Cargando...';
+
+                    if (typeof XLSX !== 'undefined') {
+                        performSensorExcelExport();
+                    } else {
+                        // Reutilizamos la función loadScript definida arriba
+                        loadScript(libSrc, performSensorExcelExport); 
+                    }
+                });
+            }
+
+            // ==================================================================
+            // FIN DE LA SECCIÓN MODIFICADA 3
+            // ==================================================================
+
+
+        })();
+    </script>
+</div>

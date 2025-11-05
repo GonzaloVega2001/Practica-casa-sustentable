@@ -1,0 +1,27 @@
+<!doctype html>
+<html lang="es">
+<head>
+    <meta charset="utf-8" />
+    <meta name="viewport" content="width=device-width,initial-scale=1" />
+    <title>Dashboard General de Sensores</title>
+
+    <!-- Bootstrap (estilos) -->
+    <link href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.2/dist/css/bootstrap.min.css" rel="stylesheet">
+
+    <!-- Chart.js -->
+    <script src="https://cdn.jsdelivr.net/npm/chart.js@4.4.0/dist/chart.umd.min.js"></script>
+
+    <style>
+        body { padding: 1.5rem; background:#f7f9fc; }
+        .card-small { min-height: 110px; }
+        .sensor-row { cursor: pointer; }
+        pre.readings { max-height: 220px; overflow:auto; background:#fff; padding:12px; border-radius:6px; }
+    </style>
+</head>
+<body>
+    {% include '_db_general_partial.html' %}
+
+    <!-- Bootstrap JS -->
+    <script src="https://cdn.jsdelivr.net/npm/bootstrap@5.3.2/dist/js/bootstrap.bundle.min.js"></script>
+</body>
+</html>
