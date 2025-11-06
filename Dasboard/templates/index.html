@@ -15,30 +15,47 @@
     <div>
       <!-- Sidebar -->
       <div class="sidebar bg-dark text-white" id="sidebar">
-        <div class="sidebar-header p-3">
-          <img src="{% static 'img/logoupla.png' %}" alt="Logo UPLA" class="logo-sidebar mb-3">
-          <img src="{% static 'img/logolaptes.png' %}" alt="Logo Proyecto" class="logo-sidebar">
+        <div class="sidebar-header d-flex align-items-center justify-content-between p-3">
+          <div class="logo-group d-flex align-items-center">
+           
+          </div>
+          <button id="sidebarToggleBtn" class="btn btn-sm btn-outline-light" aria-label="Alternar barra lateral">
+            <i class="bi bi-chevron-left"></i>
+          </button>
         </div>
+          <!-- Labtes small logo placed above the main navigation (visible in expanded, small in collapsed) -->
+          <div class="labtes-top d-flex justify-content-center align-items-center mb-2">
+            <img src="{% static 'img/logolaptes.png' %}" alt="labtes" class="labtes-logo">
+          </div>
         <div class="sidebar-menu">
           <ul class="nav flex-column">
             <li class="nav-item">
               <a href="#" class="nav-link text-white active" data-view="general">
-                <i class="bi bi-speedometer2 me-2"></i> Dashboard General
+                <span class="nav-icon"><i class="bi bi-speedometer2"></i></span>
+                <span class="nav-label">Dashboard General</span>
               </a>
             </li>
 
             <li class="nav-item">
               <a href="#" class="nav-link text-white" data-bs-toggle="collapse" data-bs-target="#sensoresSubmenu" aria-expanded="false" aria-controls="sensoresSubmenu">
-                <i class="bi bi-thermometer-half me-2"></i> Sensores <i class="bi bi-chevron-down ms-2"></i>
+                <span class="nav-icon"><i class="bi bi-thermometer-half"></i></span>
+                <span class="nav-label">Sensores</span>
+                <span class="nav-caret ms-auto"><i class="bi bi-chevron-down"></i></span>
               </a>
               <div class="collapse" id="sensoresSubmenu">
                 <ul class="nav flex-column ms-3">
                   <li class="nav-item">
-                    <a href="#" class="nav-link text-white" data-view="sensor" data-sensor="all">Todos los Sensores</a>
+                    <a href="#" class="nav-link text-white" data-view="sensor" data-sensor="all">
+                      <span class="nav-icon"><i class="bi bi-list"></i></span>
+                      <span class="nav-label">Todos los Sensores</span>
+                    </a>
                   </li>
                   {% for sensor in sensor_keys %}
                   <li class="nav-item">
-                    <a href="#" class="nav-link text-white" data-view="sensor" data-sensor="{{ sensor }}">Sensor {{ sensor }}</a>
+                    <a href="#" class="nav-link text-white" data-view="sensor" data-sensor="{{ sensor }}">
+                      <span class="nav-icon"><i class="bi bi-thermometer-half"></i></span>
+                      <span class="nav-label">Sensor {{ sensor }}</span>
+                    </a>
                   </li>
                   {% empty %}
                   <li class="nav-item"><span class="nav-link text-white small">No hay sensores</span></li>
@@ -47,6 +64,9 @@
               </div>
             </li>
           </ul>
+          <div class="logo-main-wrap d-flex align-items-center">
+              <img src="{% static 'img/logoupla.png' %}" alt="Logo UPLA" class="logo-main">
+            </div>
         </div>
       </div>
 
@@ -55,10 +75,12 @@
         <div class="container-fluid p-4">
           <div class="dashboard-wrapper d-flex justify-content-center">
             <div class="dashboard-panel w-100">
+              
               <div class="panel-title text-center py-3">
                 <h2 class="m-0">Dashboard de Sensores</h2>
                 <small class="text-muted">Visualización de temperaturas</small>
               </div>
+              
               <div class="panel-body p-3">
                 <div class="row mb-2">
                   <div class="col-12">
@@ -77,15 +99,17 @@
 
         <!-- Footer -->
         <footer class="bg-dark text-light mt-auto">
-          <div class="container py-3">
-            <div class="d-flex justify-content-center">
-              <small id="footer-info">Sitio LAPTES-FING desarrollado por
-                <a href="https://www.upla.cl/noticias/contactanos/" target="_blank" class="text-white fw-bold text-decoration-none ms-1">
-                  Dirección General de Comunicaciones
-                </a>
-              </small>
+            <div class="container py-3">
+              <div class="d-flex align-items-center justify-content-center">
+                <div>
+                  Sitio LAPTES-FING desarrollado por
+                    <a href="https://www.upla.cl/noticias/contactanos/" target="_blank" class="text-white fw-bold text-decoration-none ms-1">
+                      Dirección General de Comunicaciones
+                    </a>
+                  
+                </div>
+              </div>
             </div>
-          </div>
         </footer>
       </div>
     </div>
@@ -118,13 +142,77 @@
       }
       .panel-body::-webkit-scrollbar { width: 0; height: 0; background: transparent; }
             
-            .sidebar { width:260px; min-height:100vh; position:fixed; left:0; top:0; z-index:100; }
-            .logo-sidebar { max-width:140px; height:auto; display:block; margin:0 auto; }
-            .sidebar-menu { padding:1rem; }
-            .nav-link { padding:0.5rem 1rem; border-radius:0.375rem; margin-bottom:0.25rem; }
-            .nav-link:hover { background-color: rgba(73, 72, 72, 0.1); }
-            .nav-link.active { background-color: rgba(255,255,255,0.2); }
-            .main-content { margin-left:260px; min-height:100vh; display:flex; flex-direction:column; }
+            /* Sidebar layout */
+            :root{ --sidebar-expanded:260px; --sidebar-collapsed:72px; --sidebar-left-offset:0px; }
+            /* Sidebar as a fixed panel (no border radius) */
+            .sidebar { width:var(--sidebar-expanded); position:fixed; left:var(--sidebar-left-offset); top:0; bottom:0; z-index:220; background: linear-gradient(180deg,#17191c 0%, #23272b 100%); border-radius:0; transition: width .18s ease, left .18s ease; padding:18px 12px; box-shadow: 0 12px 40px rgba(2,6,23,0.08); display:flex; flex-direction:column; align-items:stretch; overflow:visible; }
+            .sidebar.collapsed { width:var(--sidebar-collapsed); }
+
+            /* Logo group */
+            /* Avatar / main logo styling: centered and moderate size */
+            .logo-main { width:150px; height:150px; border-radius:6px; object-fit:contain; display:block; }
+            .logo-main-wrap { display:flex;width:100%; justify-content:center; }
+            /* badge (small circular) shown in expanded as decorative badge; shrinks when collapsed */
+            /* Secondary badge shown to the right of avatar in expanded state */
+            .logo-badge { width:150px; height:150px; border-radius:50%; border:3px solid #fff; padding:4px; background:#fff; box-shadow: 0 4px 12px rgba(0,0,0,0.18); display:flex; align-items:center; justify-content:center; object-fit:contain; }
+            .logo-badge-wrap { margin-left:10px; display:flex; align-items:center; justify-content:center; }
+            /* In collapsed mode hide main logo and use a smaller badge centered */
+            .sidebar.collapsed .logo-main { display:none !important; }
+            .sidebar.collapsed .logo-badge-wrap { display:flex !important; margin-left:0 !important; justify-content:center; }
+            .sidebar.collapsed .logo-badge { width:36px !important; height:36px !important; border-width:3px !important; padding:3px !important; }
+
+            /* Labtes logo above nav */
+            .labtes-top { padding:6px 0 6px 0; display:flex; justify-content:center; }
+            .labtes-logo { width:150px; height:150px; object-fit:contain; border-radius:50%; }
+            .sidebar.collapsed .labtes-logo{ width:80px; height:80px; }
+
+            .sidebar-menu { padding: 18px 6px; display:flex; flex-direction:column; align-items:center; gap:10px; }
+            .nav-link { padding:0.4rem 0.6rem; border-radius:10px; margin-bottom:0; display:flex; align-items:center; gap:12px; width:100%; justify-content:flex-start; }
+            .nav-link { cursor: pointer; }
+            .nav-link:hover { background-color: rgba(255,255,255,0.04); }
+            .nav-link.active { background-color: rgba(255,255,255,0.06); }
+
+            .nav-icon { width:44px; height:44px; display:inline-flex; align-items:center; justify-content:center; border-radius:10px; background: rgba(255,255,255,0.03); color:#fff; }
+            .nav-label { color: #e6eef3; font-size:0.98rem; }
+            .nav-caret { color: #cbd5e1; }
+
+            /* Collapsed state: hide labels, center icons */
+            .sidebar.collapsed .nav-label{ display:none; }
+            .sidebar.collapsed .nav-caret{ display:none; }
+            .sidebar.collapsed { padding-left:12px; padding-right:12px; }
+            .sidebar.collapsed .nav-link{ justify-content:center; padding-left:16px; padding-right:16px; }
+            .sidebar.collapsed .nav-link .nav-icon{ width:44px; height:44px; margin:0 auto; }
+            .sidebar.collapsed .sidebar-menu{ gap:14px; }
+
+        /* When the sidebar is collapsed, show the sensores submenu as a flat vertical menu
+          (not as an overlay/collapsible). Remove indentation and show only icons. */
+        .sidebar.collapsed #sensoresSubmenu { display: block !important; max-height: none !important; }
+        .sidebar.collapsed #sensoresSubmenu .nav { margin-left: 0 !important; padding-left: 0 !important; }
+        .sidebar.collapsed #sensoresSubmenu .nav-link { justify-content:center; padding-left:0.6rem; padding-right:0.6rem; }
+        .sidebar.collapsed #sensoresSubmenu .nav-link .nav-icon { margin: 0; }
+
+            /* sidebar header and toggle styling: keep toggle visually on the edge but not overlapping content */
+            .sidebar-header { position: relative; }
+            #sidebarToggleBtn { position: absolute; right: -18px; top: 50%; transform: translateY(-50%); width:40px; height:40px; padding:0.15rem; display:flex; align-items:center; justify-content:center; border-radius:8px; z-index:230; box-shadow: 0 6px 18px rgba(2,6,23,0.25); }
+            #sidebarToggleBtn i { font-size:1rem; }
+
+            /* Icon sizing adjustments when collapsed to center them nicely */
+            .nav-icon { width:36px; height:36px; display:inline-flex; align-items:center; justify-content:center; border-radius:8px; background: rgba(255,255,255,0.03); color:#fff; }
+            .sidebar.collapsed .nav-icon{ width:44px; height:44px; border-radius:10px; }
+
+            /* Ensure the sidebar doesn't clip the toggle button */
+            .sidebar { overflow: visible; }
+
+            /* Main content offset so it doesn't overlap fixed sidebar */
+            .main-content { padding-left: calc(var(--sidebar-left-offset) + var(--sidebar-expanded) + 12px); min-height:100vh; display:flex; flex-direction:column; transition: padding-left .18s ease; }
+            .sidebar.collapsed ~ .main-content, .sidebar.collapsed + .main-content { padding-left: calc(var(--sidebar-left-offset) + var(--sidebar-collapsed) + 12px); }
+
+            /* Footer fixed full-width so background reaches the left edge and no gap appears */
+            footer { position: fixed; left: 0; right: 0; bottom: 0; z-index: 90; background: #212529; }
+            footer .container { padding-left: calc(var(--sidebar-left-offset) + var(--sidebar-expanded) + 12px); }
+            .sidebar.collapsed ~ .main-content footer .container, .sidebar.collapsed + .main-content footer .container { padding-left: calc(var(--sidebar-left-offset) + var(--sidebar-collapsed) + 12px); }
+            /* make space at the bottom of main content so footer doesn't overlap content */
+            .main-content { padding-bottom: 84px; }
 
             /* Centrar el panel y dejar espacio en blanco a la derecha (panel fijo centrado) */
             .dashboard-wrapper { justify-content: center; }
@@ -149,7 +237,7 @@
             .legend-dot{ width:12px; height:12px; display:inline-block; border-radius:50%; margin-right:6px; vertical-align:middle; box-shadow:0 0 0 3px rgba(0,0,0,0.03) inset; }
             .legend-item{ display:inline-flex; align-items:center; gap:6px; padding:4px 8px; background: transparent; border-radius:6px; }
             /* Hacer que el contenedor de tarjetas tenga overflow y sea scrollable */
-            .panel-body {
+      .panel-body {
                 /* limitar altura para permitir scroll interno dentro del panel */
                 max-height: calc(100vh - 200px);
                 overflow-y: auto;
@@ -159,6 +247,8 @@
 
             /* Asegurar que el contenedor donde se insertan las tarjetas use overflow en X oculto */
             #contenedor-sensores { overflow-x: hidden; }
+
+            /* Footer logos removed - footer restored to simple centered layout */
         </style>
 
         <!-- Scripts -->
@@ -226,6 +316,53 @@
                         });
                     });
                 }
+
+        // Sidebar toggle logic: collapse/expand and persist state
+        (function(){
+          const sidebar = document.getElementById('sidebar');
+          const toggle = document.getElementById('sidebarToggleBtn');
+          if(!sidebar || !toggle) return;
+          // keep track of initialized bootstrap tooltip instances so we can dispose them
+          const tooltipMap = new Map();
+          function enableTooltips(){
+            const links = sidebar.querySelectorAll('.nav-link');
+            links.forEach(l=>{
+              const lbl = l.querySelector('.nav-label');
+              if(!lbl) return;
+              // set tooltip attributes - bootstrap will take the title and suppress native tooltip
+              l.setAttribute('data-bs-toggle','tooltip');
+              l.setAttribute('title', lbl.textContent.trim());
+              try{
+                const inst = new bootstrap.Tooltip(l, { placement: 'right', container: document.body });
+                tooltipMap.set(l, inst);
+              }catch(e){ /* ignore if bootstrap not available */ }
+            });
+          }
+          function disableTooltips(){
+            tooltipMap.forEach((inst, el)=>{ try{ inst.dispose(); }catch(e){} });
+            tooltipMap.clear();
+            const links = sidebar.querySelectorAll('.nav-link');
+            links.forEach(l=>{ l.removeAttribute('data-bs-toggle'); l.removeAttribute('title'); l.removeAttribute('data-bs-original-title'); });
+          }
+          function setCollapsed(val){
+            if(val) sidebar.classList.add('collapsed'); else sidebar.classList.remove('collapsed');
+            // manage tooltips: use Bootstrap tooltips when collapsed, remove when expanded
+            if(val) enableTooltips(); else disableTooltips();
+            // When collapsing, ensure the sensores submenu is visible as flat menu; when expanding, collapse it by default
+            try{
+                const sensoresSubmenuLocal = document.getElementById('sensoresSubmenu');
+                const sensoresToggleLocal = document.querySelector('[data-bs-target="#sensoresSubmenu"]');
+                if(sensoresSubmenuLocal){ if(val) sensoresSubmenuLocal.classList.add('show'); else sensoresSubmenuLocal.classList.remove('show'); }
+                if(sensoresToggleLocal){ sensoresToggleLocal.setAttribute('aria-expanded', (val? 'true':'false')); }
+            }catch(e){}
+            // change chevron direction
+            const ic = toggle.querySelector('i'); if(ic) ic.className = val? 'bi bi-chevron-right' : 'bi bi-chevron-left';
+            try{ localStorage.setItem('sidebarCollapsed', val? '1':'0'); }catch(e){}
+          }
+          // restore
+          try{ const st = localStorage.getItem('sidebarCollapsed'); setCollapsed(st==='1'); }catch(e){}
+          toggle.addEventListener('click', (e)=>{ e.preventDefault(); setCollapsed(!sidebar.classList.contains('collapsed')); });
+        })();
 
         function loadGeneralPartial(){
           destroyAllCharts();
@@ -376,19 +513,32 @@
                         const getHumidityValue = r=> Number(r.humedad ?? r.humedad_relativa ?? r.humidity ?? r.hum ?? r.humedad_porcentaje ?? NaN);
                         const hourlyHum = hours.map(h=>{ const end=new Date(h); end.setHours(h.getHours()+1); const slot = readings.map(r=>({d:new Date(r.fecha_hora),h:getHumidityValue(r)})).filter(x=>!isNaN(x.h) && x.d>=h && x.d<end).map(x=>x.h); if(!slot.length) return null; const s=slot.reduce((a,b)=>a+b,0); return +(s/slot.length).toFixed(2); });
 
-                        const temps = hourlyAvg.filter(v=>v!==null); const minTemp = temps.length?Math.min(...temps):null; const maxTemp = temps.length?Math.max(...temps):null; const overallAvg = temps.length?+(temps.reduce((a,b)=>a+b,0)/temps.length).toFixed(2):null;
-                        const hums = hourlyHum.filter(v=>v!==null); const minHum = hums.length?Math.min(...hums):null; const maxHum = hums.length?Math.max(...hums):null; const overallHumAvg = hums.length?+(hums.reduce((a,b)=>a+b,0)/hums.length).toFixed(2):null;
+                        // Use hourly averages for charting, but compute min/max from raw readings (DB) so displayed Min/Max match the DB values
+                        const temps = hourlyAvg.filter(v=>v!==null);
+                        const overallAvg = temps.length?+(temps.reduce((a,b)=>a+b,0)/temps.length).toFixed(2):null;
+                        const hums = hourlyHum.filter(v=>v!==null);
+                        const overallHumAvg = hums.length?+(hums.reduce((a,b)=>a+b,0)/hums.length).toFixed(2):null;
+
+                        // raw values from DB
+                        const tempsRaw = readings.map(r=>{ const t = Number(r.temperatura); return isNaN(t)?null:t; }).filter(x=>x!==null);
+                        const minTemp = tempsRaw.length?Math.min(...tempsRaw):null;
+                        const maxTemp = tempsRaw.length?Math.max(...tempsRaw):null;
+                        const humsRaw = readings.map(r=>{ const h = getHumidityValue(r); return isNaN(h)?null:h; }).filter(x=>x!==null);
+                        const minHum = humsRaw.length?Math.min(...humsRaw):null;
+                        const maxHum = humsRaw.length?Math.max(...humsRaw):null;
                         const lastReading = readings[readings.length-1];
+
+                        // small helper to format numbers with decimals for display
+                        const formatNumber = (v, decimals=2) => { if(v===null || v===undefined || v==='' || Number.isNaN(Number(v))) return '--'; const n = Number(v); return n.toFixed(1); };
 
                         const lastEl = card.querySelector('.last-reading'); if(lastEl) lastEl.textContent = 'Última: ' + (lastReading? new Date(lastReading.fecha_hora).toLocaleString() : '--');
                         const tipoParedEl = card.querySelector('.tipo-pared'); if(tipoParedEl) tipoParedEl.textContent = readings[0]?.tipo_pared ?? '--';
-                        const curTempEl = card.querySelector('.current-temp'); if(curTempEl) curTempEl.textContent = lastReading? lastReading.temperatura : '--';
-                        const curHumEl = card.querySelector('.current-hum'); if(curHumEl) curHumEl.textContent = lastReading? (getHumidityValue(lastReading)||'--') : '--';
-                        const minMaxTemp = card.querySelector('.min-max-temp'); if(minMaxTemp) minMaxTemp.innerHTML = 'Min: <strong>' + (minTemp!==null?minTemp:'--') + '</strong> °C — Max: <strong>' + (maxTemp!==null?maxTemp:'--') + '</strong> °C';
-                        const minMaxHum = card.querySelector('.min-max-hum'); if(minMaxHum) minMaxHum.innerHTML = 'Min H: <strong>' + (minHum!==null?minHum:'--') + '</strong>% — Max H: <strong>' + (maxHum!==null?maxHum:'--') + '</strong>%';
-                        const avgT = card.querySelector('.avg-t'); if(avgT) avgT.innerHTML = 'Promedio T: <strong>' + (overallAvg!==null?overallAvg:'--') + '</strong> °C';
-                        const avgH = card.querySelector('.avg-h'); if(avgH) avgH.innerHTML = 'Promedio H: <strong>' + (overallHumAvg!==null?overallHumAvg:'--') + '</strong> %';
-
+                        const curTempEl = card.querySelector('.current-temp'); if(curTempEl) curTempEl.textContent = lastReading? formatNumber(lastReading.temperatura, 1) : '--' + '</strong> °C';
+                        const curHumEl = card.querySelector('.current-hum'); if(curHumEl) curHumEl.textContent = lastReading? formatNumber(getHumidityValue(lastReading), 1) : '--';
+                        const minMaxTemp = card.querySelector('.min-max-temp'); if(minMaxTemp) minMaxTemp.innerHTML = 'Min: <strong>' + (minTemp!==null?formatNumber(minTemp,1):'--') + '</strong> °C — Max: <strong>' + (maxTemp!==null?formatNumber(maxTemp,1):'--') + '</strong> °C';
+                        const minMaxHum = card.querySelector('.min-max-hum'); if(minMaxHum) minMaxHum.innerHTML = 'Min H: <strong>' + (minHum!==null?formatNumber(minHum,1):'--') + '</strong>% — Max H: <strong>' + (maxHum!==null?formatNumber(maxHum,1):'--') + '</strong>%';
+                        const avgT = card.querySelector('.avg-t'); if(avgT) avgT.innerHTML = 'Promedio T: <strong>' + (overallAvg!==null?formatNumber(overallAvg,1):'--') + '</strong> °C';
+                        const avgH = card.querySelector('.avg-h'); if(avgH) avgH.innerHTML = 'Promedio H: <strong>' + (overallHumAvg!==null?formatNumber(overallHumAvg,1):'--') + '</strong> %';
                                     const canvasTemp = card.querySelector('canvas[id^="chart-temp"]');
                                     const canvasHum = card.querySelector('canvas[id^="chart-hum"]');
                                     try{
@@ -490,9 +640,56 @@
                                     try{ handleResize(); setTimeout(handleResize, 200); }catch(e){ /* ignore */ }
                 }
 
-                // initialize: attach menu handlers then restore last view from localStorage
-                setupMenu();
-                restoreState();
+        // initialize: attach menu handlers then restore last view from localStorage
+        setupMenu();
+
+        // Ensure the 'Sensores' collapse toggle works reliably (works even if bootstrap data attributes fail)
+        try{
+          const sensoresToggle = document.querySelector('[data-bs-target="#sensoresSubmenu"]');
+          const sensoresSubmenu = document.getElementById('sensoresSubmenu');
+          if(sensoresToggle && sensoresSubmenu){
+            // remove bootstrap data attributes to avoid double-handling by data-api
+            try{ sensoresToggle.removeAttribute('data-bs-toggle'); sensoresToggle.removeAttribute('data-bs-target'); }catch(e){}
+            sensoresToggle.addEventListener('click', function(ev){
+              ev.preventDefault();
+              // stop other handlers (including bootstrap's) from receiving this click
+              try{ ev.stopImmediatePropagation(); }catch(e){}
+              // If sidebar is collapsed, keep submenu visible and do not toggle
+              const sidebarEl = document.getElementById('sidebar');
+              if(sidebarEl && sidebarEl.classList.contains('collapsed')){
+                sensoresSubmenu.classList.add('show');
+                sensoresToggle.setAttribute('aria-expanded','true');
+                return;
+              }
+              // toggle the submenu manually
+              sensoresSubmenu.classList.toggle('show');
+              const expanded = sensoresSubmenu.classList.contains('show');
+              sensoresToggle.setAttribute('aria-expanded', expanded ? 'true' : 'false');
+            });
+          }
+        }catch(e){ console.warn('No se pudo inicializar el toggle Sensores', e); }
+
+        // Event delegation fallback: handle clicks on any element with [data-view]
+        // This ensures links inside collapsed/Bootstrap-collapsed containers work reliably
+        document.addEventListener('click', function(ev){
+          const a = ev.target.closest('[data-view]');
+          if(!a) return;
+          ev.preventDefault();
+          // remove active from other menu items and set this one
+          const menuLinks = document.querySelectorAll('[data-view]');
+          menuLinks.forEach(l=>l.classList.remove('active'));
+          a.classList.add('active');
+          const view = a.dataset.view; const sensor = a.dataset.sensor;
+          if(view==='general'){
+            saveState({view:'general', sensor:null}); setLayoutForView('dashboard'); loadGeneralPartial();
+          } else if(view==='dashboard'){
+            saveState({view:'dashboard', sensor:null}); setLayoutForView('dashboard'); loadSensors();
+          } else if(view==='sensor'){
+            saveState({view:'sensor', sensor: sensor}); setLayoutForView('sensor'); if(sensor==='all') loadSensors(); else loadSensor(sensor);
+          }
+        });
+
+        restoreState();
             })();
         </script>
         <script src="https://cdn.jsdelivr.net/npm/bootstrap@5.3.2/dist/js/bootstrap.bundle.min.js"></script>

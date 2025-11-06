@@ -12,6 +12,14 @@
         /* Ensure collapse rows don't stretch the layout */
         .db-general-partial .collapse-row { display: table-row; }
         .db-general-partial .readings { white-space: pre-wrap; }
+
+        /* Asegurar que el modal esté centrado vertical y horizontalmente */
+        .modal-dialog {
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            min-height: 100vh; /* Asegura que ocupe toda la altura de la ventana */
+        }
     </style>
     <div class="container-fluid">
 
@@ -145,11 +153,13 @@
 
             function formatDate(d){ try{ return new Date(d).toLocaleString(); }catch(e){ return d; } }
 
+            // Helper para formatear números que vienen de la base de datos
+            function formatNumber(v, decimals=2){ if(v===null || v===undefined || v==='' || Number.isNaN(Number(v))) return '--'; return Number(v).toFixed(decimals); }
+
             const avgValues = [];
             sensorKeys.forEach((sensorId, idx)=>{
                 const readings = grouped[sensorId].slice().sort((a,b)=>new Date(a.fecha_hora)-new Date(b.fecha_hora));
-                const temps = readings.map(r=>Number(r.temperatura)).filter(x=>!isNaN(x));
-                const avgTemp = temps.length ? (temps.reduce((a,b)=>a+b,0)/temps.length) : null;
+                const temps = readings.map(r => parseFloat(Number(r.temperatura).toFixed(2))).filter(x => !isNaN(x));                const avgTemp = temps.length ? (temps.reduce((a,b)=>a+b,0)/temps.length) : null;
                 const last = readings[readings.length-1];
                 avgValues.push({sensor: sensorId, avg: avgTemp||0});
 
@@ -158,10 +168,10 @@
                 row.innerHTML = `
                     <td>Sensor ${sensorId}</td>
                     <td>°C</td>
-                    <td class="avgCell">${avgTemp!==null? avgTemp.toFixed(2) : '--'}</td>
+                    <td class="avgCell">${avgTemp!==null? formatNumber(avgTemp,2) : '--'}</td>
                     <td class="lastCell">${ last ? formatDate(last.fecha_hora) : '--' }</td>
-                    <td class="minCell">${temps.length? Math.min(...temps).toFixed(2) : '--'}</td>
-                    <td class="maxCell">${temps.length? Math.max(...temps).toFixed(2) : '--'}</td>
+                    <td class="minCell">${temps.length? formatNumber(Math.min(...temps),2) : '--'}</td>
+                    <td class="maxCell">${temps.length? formatNumber(Math.max(...temps),2) : '--'}</td>
                     <td class="countCell">${readings.length}</td>
                     <td><button class="btn btn-sm btn-outline-secondary toggleBtn" data-bs-toggle="collapse" data-bs-target="#log${idx}">Ver</button></td>
                 `;
@@ -173,23 +183,13 @@
                             <div class="p-3">
                                 <div class="d-flex justify-content-between mb-2">
                                     <div class="small text-muted">Últimas lecturas</div>
-
-                                    <div>
-                                        <button class="btn btn-sm btn-primary openSensorExportModal" 
-                                                data-bs-toggle="modal" 
-                                                data-bs-target="#sensorExportModal" 
-                                                data-index="${idx}"
-                                                data-sensor-id="${sensorId}">
-                                            <i class="bi bi-download me-2"></i> Exportar CSV / Excel
-                                        </button>
-                                    </div>
                                     </div>
                                 <pre class="readings" id="readings${idx}"></pre>
                             </div>
                         </div>
                     </td>
                 `; tbody.appendChild(cr);
-                const pre = cr.querySelector('#readings' + idx); if(pre){ pre.textContent = readings.slice(-50).map(r=> `${formatDate(r.fecha_hora)} - ${r.temperatura} ${r.humedad?('/ '+r.humedad):''}`).join('\n'); }
+                const pre = cr.querySelector('#readings' + idx); if(pre){ pre.textContent = readings.slice(-50).map(r=> `${formatDate(r.fecha_hora)} - ${formatNumber(r.temperatura,1)}${ (r.humedad !== undefined && r.humedad !== null && r.humedad !== '') ? (' / ' + formatNumber(Number(r.humedad),1) + ' %') : '' }`).join('\n'); }
             });
 
             // global averages (temperature and humidity)
@@ -204,8 +204,8 @@
                 return { sensor: sensorId, avg: avgH };
             });
 
-            if(globalAvgTempEl){ const numeric = avgTempValues.map(v=>v.avg).filter(x=>!isNaN(x) && x!==0); const gavg = numeric.length? (numeric.reduce((a,b)=>a+b,0)/numeric.length) : null; globalAvgTempEl.textContent = gavg ? gavg.toFixed(2) : '--'; }
-            if(globalAvgHumEl){ const numericH = avgHumValues.map(v=>v.avg).filter(x=>!isNaN(x) && x!==0); const gavgH = numericH.length? (numericH.reduce((a,b)=>a+b,0)/numericH.length) : null; globalAvgHumEl.textContent = gavgH ? gavgH.toFixed(2) : '--'; }
+            if(globalAvgTempEl){ const numeric = avgTempValues.map(v=>v.avg).filter(x=>!isNaN(x) && x!==0); const gavg = numeric.length? (numeric.reduce((a,b)=>a+b,0)/numeric.length) : null; globalAvgTempEl.textContent = gavg ? formatNumber(gavg,2) : '--'; }
+            if(globalAvgHumEl){ const numericH = avgHumValues.map(v=>v.avg).filter(x=>!isNaN(x) && x!==0); const gavgH = numericH.length? (numericH.reduce((a,b)=>a+b,0)/numericH.length) : null; globalAvgHumEl.textContent = gavgH ? formatNumber(gavgH,2) : '--'; }
 
             // line charts for averages (Temperature and Humidity)
             try{
@@ -277,12 +277,6 @@
                     });
                 }catch(e){ console.warn('Error forzando redraw charts generales', e); }
             };
-
-
-            // ==================================================================
-            // INICIO DE LA SECCIÓN MODIFICADA 3 (LÓGICA JAVASCRIPT)
-            // ==================================================================
-
             // ELIMINAMOS la lógica antigua del botón de sensor
             document.addEventListener('click', function(e){ 
                 // La lógica de 'exportSensorBtn' fue eliminada de aquí
@@ -313,7 +307,12 @@
             const exportCsvBtn = document.getElementById('exportCsvBtn');
             if (exportCsvBtn) {
                 exportCsvBtn.addEventListener('click', () => {
-                    const rows = sensores_raw.map(r => `${r.fecha_hora},${r.id_termocupla},${r.temperatura},${r.humedad || ''}`);
+                    // Format values for CSV using display-friendly decimals
+                    const rows = sensores_raw.map(r => {
+                        const t = (r.temperatura !== undefined && r.temperatura !== null && r.temperatura !== '') ? formatNumber(Number(r.temperatura), 1) : '';
+                        const h = (r.humedad !== undefined && r.humedad !== null && r.humedad !== '') ? formatNumber(Number(r.humedad), 1) : '';
+                        return `${r.fecha_hora},${r.id_termocupla},${t},${h}`;
+                    });
                     const csv = ['timestamp,sensor,temperatura,humedad'].concat(rows).join('\n');
                     const blob = new Blob([csv], { type: 'text/csv' });
                     const url = URL.createObjectURL(blob);
@@ -346,10 +345,16 @@
                 }
 
                 // Función de exportación GLOBAL
-                function performExcelExport() {
-                    try {
-                        const rows = sensores_raw.map(r => [r.fecha_hora, r.id_termocupla, r.temperatura, r.humedad || '']);
-                        const sheetData = [['timestamp', 'sensor', 'temperatura', 'humedad'], ...rows];
+                    function performExcelExport() {
+                        try {
+                        // Format values for Excel (string values with desired decimals)
+                        const rows = sensores_raw.map(r => [
+                            r.fecha_hora,
+                            r.id_termocupla,
+                            (r.temperatura !== undefined && r.temperatura !== null && r.temperatura !== '') ? formatNumber(Number(r.temperatura), 1) : '',
+                            (r.humedad !== undefined && r.humedad !== null && r.humedad !== '') ? formatNumber(Number(r.humedad), 1) : ''
+                        ]);
+                        const sheetData = [['Fecha', 'Termocupla', 'Temperatura', 'Humedad'], ...rows];
                         
                         const worksheet = XLSX.utils.aoa_to_sheet(sheetData);
                         const workbook = XLSX.utils.book_new();
@@ -414,8 +419,12 @@
                     const key = sensorKeys[idx];
                     if (!key) return;
 
-                    const rows = (grouped[key]||[]).map(r=> [r.fecha_hora, r.temperatura, r.humedad||''].join(','));
-                    const csv = ['timestamp,temperatura,humedad'].concat(rows).join('\n');
+                    const rows = (grouped[key]||[]).map(r=> {
+                        const t = (r.temperatura !== undefined && r.temperatura !== null && r.temperatura !== '') ? formatNumber(Number(r.temperatura),1) : '';
+                        const h = (r.humedad !== undefined && r.humedad !== null && r.humedad !== '') ? formatNumber(Number(r.humedad),1) : '';
+                        return [r.fecha_hora, t, h].join(',');
+                    });
+                    const csv = ['Fecha-Hora,Temperatura,Humedad'].concat(rows).join('\n');
                     const blob = new Blob([csv], {type:'text/csv'});
                     const url = URL.createObjectURL(blob);
                     const a=document.createElement('a');
@@ -446,8 +455,12 @@
 
                     try {
                         const readings = grouped[key] || [];
-                        const rows = readings.map(r => [r.fecha_hora, r.temperatura, r.humedad || '']);
-                        const sheetData = [['timestamp', 'temperatura', 'humedad'], ...rows];
+                        const rows = readings.map(r => [
+                            r.fecha_hora,
+                            (r.temperatura !== undefined && r.temperatura !== null && r.temperatura !== '') ? formatNumber(Number(r.temperatura),1) : '',
+                            (r.humedad !== undefined && r.humedad !== null && r.humedad !== '') ? formatNumber(Number(r.humedad),1) : ''
+                        ]);
+                        const sheetData = [['Fecha-Hora', 'Temperatura', 'Humedad'], ...rows];
                         
                         const worksheet = XLSX.utils.aoa_to_sheet(sheetData);
                         const workbook = XLSX.utils.book_new();
@@ -478,12 +491,6 @@
                     }
                 });
             }
-
-            // ==================================================================
-            // FIN DE LA SECCIÓN MODIFICADA 3
-            // ==================================================================
-
-
         })();
     </script>
 </div>

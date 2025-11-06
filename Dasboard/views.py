@@ -5,6 +5,11 @@ from django.core.serializers.json import DjangoJSONEncoder # Importar el encoder
 from django.http import JsonResponse, HttpResponse
 from django.template.loader import render_to_string
 import traceback
+import csv
+import io
+from django.http import HttpResponse
+import openpyxl 
+from datetime import datetime
 
 def dashboard(request):
     # 1. Obtenemos los datos directamente como un QuerySet de diccionarios
@@ -134,3 +139,78 @@ def dashboard_general(request):
             return HttpResponse(status=500, content='Error rendering partial')
 
     return render(request, 'db_general.html', {'sensores_json': sensores_json_string})
+
+# ... (tus vistas existentes: dashboard, index, dashboard_partial, etc.)
+
+def export_sensor_csv(request, sensor_id):
+    """
+    Genera un archivo CSV con los datos de un sensor específico.
+    """
+    try:
+        # Preparamos la respuesta HTTP
+        response = HttpResponse(
+            content_type='text/csv',
+            headers={'Content-Disposition': f'attachment; filename="sensor_{sensor_id}.csv"'},
+        )
+        response.write(u'\ufeff'.encode('utf8')) # BOM para que Excel reconozca UTF-8
+
+        writer = csv.writer(response, delimiter=';') # Usamos punto y coma para compatibilidad en Excel
+        
+        # Escribimos las cabeceras
+        writer.writerow(['id_termocupla', 'fecha_hora', 'temperatura', 'humedad', 'tipo_pared'])
+
+        # Obtenemos los datos solo para este sensor
+        readings = EstadoSensor.objects.filter(id_termocupla=sensor_id).order_by('fecha_hora').values_list(
+            'id_termocupla', 'fecha_hora', 'temperatura', 'humedad', 'tipo_pared'
+        )
+
+        for reading in readings:
+            # Convertimos la fecha y hora a cadena de texto en formato ISO
+            sanitized_reading = list(reading)
+            if isinstance(sanitized_reading[1], datetime):
+                sanitized_reading[1] = sanitized_reading[1].isoformat()
+            writer.writerow(sanitized_reading)
+
+        return response
+    except Exception as e:
+        return HttpResponse(f"Error al generar CSV: {e}", status=500)
+
+
+def export_sensor_excel(request, sensor_id):
+    """
+    Genera un archivo Excel (.xlsx) con los datos de un sensor específico.
+    """
+    try:
+        # Obtenemos los datos
+        readings = EstadoSensor.objects.filter(id_termocupla=sensor_id).order_by('fecha_hora').values_list(
+            'id_termocupla', 'fecha_hora', 'temperatura', 'humedad', 'tipo_pared'
+        )
+
+        # Creamos un libro de Excel en memoria
+        wb = openpyxl.Workbook()
+        ws = wb.active
+        ws.title = f"Sensor {sensor_id}"
+
+        # Escribimos las cabeceras
+        headers = ['ID Sensor', 'Fecha y Hora', 'Temperatura (°C)', 'Humedad (%)', 'Tipo de Pared']
+        ws.append(headers)
+
+        # Escribimos los datos
+        for reading in readings:
+            # Convertimos la fecha y hora para eliminar la zona horaria
+            sanitized_reading = list(reading)
+            if isinstance(sanitized_reading[1], datetime):
+                sanitized_reading[1] = sanitized_reading[1].replace(tzinfo=None)
+            ws.append(sanitized_reading)
+
+        # Preparamos la respuesta HTTP
+        response = HttpResponse(
+            content_type='application/vnd.openxmlformats-officedocument.spreadsheetml.sheet',
+            headers={'Content-Disposition': f'attachment; filename="sensor_{sensor_id}.xlsx"'},
+        )
+
+        # Guardamos el libro de Excel en la respuesta
+        wb.save(response)
+        return response
+    except Exception as e:
+        return HttpResponse(f"Error al generar Excel: {e}", status=500)
